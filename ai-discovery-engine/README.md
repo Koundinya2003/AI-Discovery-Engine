@@ -12,7 +12,12 @@ ai-discovery-engine/
 ├── README.md           # This file
 ├── data/               # Reserved for future data exports
 ├── collectors/
-│   └── playstore.py    # Google Play Store review scraper
+│   ├── playstore.py    # Google Play review scraper
+│   ├── youtube.py      # YouTube comment scraper
+│   ├── steam.py        # Steam review scraper
+│   ├── hackernews.py   # Hacker News scraper
+│   ├── github.py       # GitHub issues & discussions scraper
+│   └── rss.py          # RSS feed scraper
 ├── ai/
 │   └── analyzer.py     # OpenRouter LLM integration
 └── utils/
@@ -65,9 +70,12 @@ ai-discovery-engine/
 2. **ai/analyzer.py** – Sends the review texts to OpenRouter via the OpenAI‑compatible endpoint and returns a natural‑language summary.
 3. **app.py** – Ties everything together in a simple Streamlit interface.
 
-## Notes
+## Supported Data Sources
 
-- This is a **portfolio MVP** – not intended for production use.
-- No App Store or Reddit support.
-- No Docker, no tests, no logging.
-- All LLM calls go through **OpenRouter**; the OpenAI SDK is used only as a transport layer for OpenRouter compatibility.
+- Google Play Reviews
+- YouTube Comments
+- Steam Reviews
+- Hacker News
+- GitHub Issues & Discussions
+- RSS Feeds
+

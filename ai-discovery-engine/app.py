@@ -6,7 +6,12 @@ from datetime import datetime
 import streamlit as st
 
 from ai.analyzer import analyze_reviews, ask_about_reviews
-from collectors.playstore import get_reviews, search_apps
+from collectors.playstore import get_reviews as playstore_reviews, search_apps
+from collectors.youtube import get_reviews as youtube_reviews
+from collectors.steam import get_reviews as steam_reviews
+from collectors.hackernews import get_reviews as hackernews_reviews
+from collectors.github import get_reviews as github_reviews
+from collectors.rss import get_reviews as rss_reviews
 
 st.set_page_config(
     page_title="AI-Powered Discovery Engine",
@@ -20,7 +25,7 @@ with col2:
     st.title("🔍 AI-Powered Discovery Engine")
     st.markdown(
         "<p style='text-align: center;'>"
-        "Discover user pain points from Google Play reviews using AI."
+        "Discover user pain points from reviews using AI."
         "</p>",
         unsafe_allow_html=True,
     )
@@ -34,129 +39,194 @@ if "selected_app" not in st.session_state:
     st.session_state.selected_app = None
 if "review_text" not in st.session_state:
     st.session_state.review_text = None
+if "source" not in st.session_state:
+    st.session_state.source = "Google Play Reviews"
+if "analysis_done" not in st.session_state:
+    st.session_state.analysis_done = False
+if "analysis_df" not in st.session_state:
+    st.session_state.analysis_df = None
+if "analysis_source" not in st.session_state:
+    st.session_state.analysis_source = None
 
-# ── Inputs & Action (bordered container) ───────────────────────────────
-with st.container(border=True):
-    search_query = st.text_input(
-        "Search for an App",
-        placeholder="e.g. Spotify, WhatsApp, Instagram…",
+# ── Sidebar ────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.header("Data Source")
+
+    source = st.selectbox(
+        "Select data source",
+        [
+            "Google Play Reviews",
+            "YouTube Comments",
+            "Steam Reviews",
+            "Hacker News",
+            "GitHub Issues",
+            "RSS Feed",
+        ],
+        key="source",
     )
-
-    # Perform search when the user types something
-    if search_query.strip():
-        with st.spinner("Searching Google Play…"):
-            try:
-                st.session_state.search_results = search_apps(search_query.strip())
-            except Exception as exc:
-                st.error(f"Search failed: {exc}")
-                st.session_state.search_results = []
-    else:
-        st.session_state.search_results = []
-
-    # Selectbox for results
-    if st.session_state.search_results:
-        results = st.session_state.search_results
-        options = [
-            f"{r['title']} - {r.get('developer', 'Unknown')} ⭐ {r.get('score', '?')}"
-            for r in results
-        ]
-        selected_idx = st.selectbox(
-            "Select an app",
-            options=options,
-            index=0,
-        )
-        # Map the selected label back to the app dict
-        st.session_state.selected_app = results[options.index(selected_idx)]
-    else:
-        if search_query.strip():
-            st.warning("No apps found. Try a different search term.")
-        st.session_state.selected_app = None
-        # Still show a disabled selectbox so layout is preserved
-        st.selectbox(
-            "Select an app",
-            options=["No results yet"],
-            index=0,
-            disabled=True,
-        )
-
-    review_count = st.slider(
-        "Number of reviews",
-        min_value=10,
-        max_value=800,
-        value=250,
-    )
-
-    analyze_clicked = st.button("Analyze Reviews", type="primary")
-
-# ── Analysis ───────────────────────────────────────────────────────────
-if analyze_clicked:
-    if st.session_state.selected_app is None:
-        st.error("Please search for and select an app before analyzing.")
-        st.stop()
-
-    app_info = st.session_state.selected_app
-    app_id = app_info["appId"]
-
-    # ── App info card ───────────────────────────────────────────────────
-    with st.container(border=True):
-        cols = st.columns([1, 4])
-        with cols[0]:
-            icon_url = app_info.get("icon")
-            if icon_url:
-                st.image(icon_url, width=80)
-        with cols[1]:
-            st.markdown(f"### {app_info.get('title', 'Unknown')}")
-            st.markdown(
-                f"**Developer:** {app_info.get('developer', 'Unknown')}  "
-                f"|  **Rating:** ⭐ {app_info.get('score', '?')}  "
-                f"|  **Installs:** {app_info.get('installs', 'N/A')}"
-            )
-
-    with st.spinner("Fetching reviews from Google Play…"):
-        try:
-            df = get_reviews(app_id, count=review_count)
-        except Exception as exc:
-            st.error(f"Failed to fetch reviews: {exc}")
-            st.stop()
-
-    if df.empty:
-        st.info("No reviews found for this app.")
-        st.stop()
-
-    st.success(f"Total reviews fetched: **{len(df)}**")
-
-    # ── Metrics ─────────────────────────────────────────────────────────
-    avg_rating = round(df["rating"].mean(), 2) if "rating" in df.columns else 0
-    one_star = int((df["rating"] == 1).sum()) if "rating" in df.columns else 0
-    five_star = int((df["rating"] == 5).sum()) if "rating" in df.columns else 0
-
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        st.metric("Reviews Analyzed", len(df))
-    with col2:
-        st.metric("Average Rating", avg_rating)
-    with col3:
-        st.metric("1★ Reviews", one_star)
-    with col4:
-        st.metric("5★ Reviews", five_star)
 
     st.markdown("---")
 
-    # ── Raw reviews (expandable) ────────────────────────────────────────
-    with st.expander("View Raw Reviews"):
-        display_cols = [c for c in ["rating", "date", "review_text"] if c in df.columns]
+    input_value = None
+    count_value = 100
+
+    if source == "Google Play Reviews":
+        search_query = st.text_input(
+            "Search App",
+            placeholder="e.g. Spotify, WhatsApp, Instagram…",
+        )
+
+        if search_query.strip():
+            with st.spinner("Searching Google Play…"):
+                try:
+                    st.session_state.search_results = search_apps(search_query.strip())
+                except Exception as exc:
+                    st.error(f"Search failed: {exc}")
+                    st.session_state.search_results = []
+        else:
+            st.session_state.search_results = []
+
+        if st.session_state.search_results:
+            results = st.session_state.search_results
+            options = [
+                f"{r['title']} - {r.get('developer', 'Unknown')} ⭐ {r.get('score', '?')}"
+                for r in results
+            ]
+            selected_idx = st.selectbox("Select an app", options=options, index=0)
+            st.session_state.selected_app = results[options.index(selected_idx)]
+            input_value = st.session_state.selected_app["appId"]
+        else:
+            if search_query.strip():
+                st.warning("No apps found. Try a different search term.")
+            st.session_state.selected_app = None
+            st.selectbox("Select an app", options=["No results yet"], index=0, disabled=True)
+
+        count_value = st.slider("Number of Reviews", min_value=10, max_value=800, value=250)
+
+    elif source == "YouTube Comments":
+        video_id = st.text_input(
+            "Video URL or Video ID",
+            placeholder="e.g. dQw4w9WgXcQ or https://youtube.com/watch?v=dQw4w9WgXcQ",
+        )
+        # Extract video ID from URL if needed
+        raw_input = video_id.strip()
+        if raw_input and ("youtube.com" in raw_input or "youtu.be" in raw_input):
+            if "v=" in raw_input:
+                input_value = raw_input.split("v=")[1].split("&")[0]
+            elif "youtu.be/" in raw_input:
+                input_value = raw_input.split("youtu.be/")[1].split("?")[0]
+            else:
+                input_value = raw_input
+        else:
+            input_value = raw_input
+        count_value = st.slider("Number of Comments", min_value=10, max_value=500, value=100)
+
+    elif source == "Steam Reviews":
+        app_id = st.text_input("Steam App ID", placeholder="e.g. 730")
+        input_value = app_id.strip()
+        count_value = st.slider("Number of Reviews", min_value=10, max_value=500, value=100)
+
+    elif source == "Hacker News":
+        query = st.text_input("Keyword", placeholder="e.g. AI, Python, startup")
+        input_value = query.strip()
+        count_value = st.slider("Maximum Results", min_value=10, max_value=200, value=50)
+
+    elif source == "GitHub Issues":
+        repo = st.text_input("Repository (owner/repo)", placeholder="e.g. torvalds/linux")
+        input_value = repo.strip()
+        count_value = st.slider("Maximum Issues", min_value=10, max_value=200, value=50)
+
+    elif source == "RSS Feed":
+        feed_url = st.text_input("RSS Feed URL", placeholder="e.g. https://example.com/rss")
+        input_value = feed_url.strip()
+        count_value = st.slider("Maximum Articles", min_value=5, max_value=100, value=50)
+
+    st.markdown("---")
+
+    analyze_clicked = st.button("Analyze", type="primary", use_container_width=True)
+
+# ── Analysis ───────────────────────────────────────────────────────────
+if analyze_clicked:
+    if not input_value:
+        st.error("Please provide the required input before analyzing.")
+        st.stop()
+
+    source_label = source.lower().replace(" ", "_")
+
+    with st.spinner(f"Fetching data from {source}…"):
+        try:
+            if source == "Google Play Reviews":
+                df = playstore_reviews(input_value, count=count_value)
+            elif source == "YouTube Comments":
+                df = youtube_reviews(input_value)
+            elif source == "Steam Reviews":
+                df = steam_reviews(int(input_value))
+            elif source == "Hacker News":
+                df = hackernews_reviews(input_value)
+            elif source == "GitHub Issues":
+                df = github_reviews(input_value)
+            elif source == "RSS Feed":
+                df = rss_reviews(input_value)
+            else:
+                st.error(f"Unknown source: {source}")
+                st.stop()
+        except Exception as exc:
+            st.error(f"Failed to fetch data: {exc}")
+            st.stop()
+
+    if df.empty:
+        st.warning("No data found. Try a different input or source.")
+        st.stop()
+
+    # Store in session state for display
+    st.session_state.analysis_df = df
+    st.session_state.analysis_source = source
+    st.session_state.analysis_done = True
+
+# ── Display Results ────────────────────────────────────────────────────
+if st.session_state.analysis_done and st.session_state.analysis_df is not None:
+    df = st.session_state.analysis_df
+    source = st.session_state.analysis_source
+
+    # Show source label
+    st.markdown(f"### Source")
+    st.markdown(f"**{source}**")
+
+    st.markdown("---")
+
+    st.success(f"Total items collected: **{len(df)}**")
+
+    # ── Metrics ─────────────────────────────────────────────────────────
+    if "rating" in df.columns and df["rating"].notna().any():
+        avg_rating = round(df["rating"].mean(), 2)
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Items Analyzed", len(df))
+        with col2:
+            st.metric("Average Rating", avg_rating)
+        with col3:
+            st.metric("1★ Items", int((df["rating"] == 1).sum()))
+        with col4:
+            st.metric("5★ Items", int((df["rating"] == 5).sum()))
+    else:
+        st.metric("Items Analyzed", len(df))
+
+    st.markdown("---")
+
+    # ── Raw data (expandable) ───────────────────────────────────────────
+    with st.expander("View Raw Data"):
+        display_cols = [c for c in ["source", "rating", "date", "title", "review_text"] if c in df.columns]
         st.dataframe(df[display_cols], use_container_width=True)
 
     st.markdown("---")
 
     # ── AI Insights ─────────────────────────────────────────────────────
     if "review_text" in df.columns:
-        all_text = " ".join(df["review_text"].dropna().astype(str).tolist())
+        all_text = "\n".join(df["review_text"].dropna().astype(str).tolist())
         if all_text.strip():
-            # Store review text for later use by the AI Product Assistant
             st.session_state.review_text = all_text
 
-            with st.spinner("Analyzing reviews…"):
+            with st.spinner("Analyzing with AI…"):
                 try:
                     raw_result = analyze_reviews(all_text)
                 except Exception as exc:
@@ -165,9 +235,7 @@ if analyze_clicked:
 
             st.subheader("🧠 AI Insights")
 
-            # Try to parse JSON from the LLM response
             try:
-                # Strip markdown code fences if the model wrapped them anyway
                 cleaned = raw_result.strip()
                 if cleaned.startswith("```"):
                     cleaned = cleaned.strip("`").strip()
@@ -175,17 +243,14 @@ if analyze_clicked:
                         cleaned = cleaned[4:].strip()
                 data = json.loads(cleaned)
             except (json.JSONDecodeError, ValueError):
-                # Fallback: show raw response
                 st.warning("Could not parse structured analysis. Showing raw response:")
                 st.markdown(raw_result)
                 st.stop()
 
-            # ── Executive Summary ────────────────────────────────────────
             with st.container(border=True):
                 st.markdown("### 📋 Executive Summary")
                 st.write(data.get("executive_summary", ""))
 
-            # ── Pain Points ──────────────────────────────────────────────
             pain_points = data.get("pain_points", [])
             if pain_points:
                 st.markdown("### 🔴 Top Pain Points")
@@ -198,7 +263,6 @@ if analyze_clicked:
                             for q in quotes:
                                 st.markdown(f"> “{q}”")
 
-            # ── Feature Requests ─────────────────────────────────────────
             feature_requests = data.get("feature_requests", [])
             if feature_requests:
                 st.markdown("### 💡 Most Requested Features")
@@ -207,21 +271,18 @@ if analyze_clicked:
                         st.markdown(f"**{fr.get('title', '')}**")
                         st.write(fr.get("description", ""))
 
-            # ── Positive Feedback ────────────────────────────────────────
             positive_feedback = data.get("positive_feedback", [])
             if positive_feedback:
                 st.markdown("### ✅ Positive Feedback")
                 for fb in positive_feedback:
                     st.markdown(f"- {fb}")
 
-            # ── Sentiment ────────────────────────────────────────────────
             sentiment = data.get("sentiment", {})
             if sentiment:
                 with st.container(border=True):
                     st.markdown(f"### 📊 User Sentiment: {sentiment.get('overall', '')}")
                     st.write(sentiment.get("reason", ""))
 
-            # ── Product Opportunities ────────────────────────────────────
             opportunities = data.get("product_opportunities", [])
             if opportunities:
                 st.markdown("### 🚀 Product Opportunities")
@@ -230,18 +291,12 @@ if analyze_clicked:
                         st.markdown(f"**{opp.get('title', '')}**  \n*Impact: {opp.get('impact', '')}*")
                         st.write(opp.get("reason", ""))
 
-            # ── Export Report ──────────────────────────────────────────
-            def _build_markdown_report(app_info, data, review_count):
-                """Build a Markdown report string from analysis data."""
+            def _build_markdown_report(data, review_count, source_label):
                 lines = []
                 lines.append("# AI-Powered Discovery Report")
                 lines.append("")
-                lines.append("## App Information")
-                lines.append(f"- **Name:** {app_info.get('title', 'Unknown')}")
-                lines.append(f"- **Developer:** {app_info.get('developer', 'Unknown')}")
-                lines.append(f"- **Rating:** ⭐ {app_info.get('score', '?')}")
-                lines.append(f"- **Installs:** {app_info.get('installs', 'N/A')}")
-                lines.append(f"- **Reviews Analyzed:** {review_count}")
+                lines.append(f"**Source:** {source}")
+                lines.append(f"**Items Analyzed:** {review_count}")
                 lines.append("")
                 lines.append("## Executive Summary")
                 lines.append(data.get("executive_summary", ""))
@@ -287,8 +342,8 @@ if analyze_clicked:
                 lines.append(f"*Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*")
                 return "\n".join(lines)
 
-            report_md = _build_markdown_report(app_info, data, review_count)
-            safe_name = app_info.get("title", "app").replace(" ", "_").replace(":", "").replace("/", "_")
+            report_md = _build_markdown_report(data, len(df), source_label)
+            safe_name = source_label
             st.download_button(
                 label="📄 Download Analysis Report",
                 data=report_md,
@@ -302,11 +357,11 @@ st.markdown("---")
 st.subheader("🤖 AI Product Assistant")
 
 if st.session_state.review_text is None:
-    st.info("Analyze an app first.")
+    st.info("Analyze data from any source first.")
 else:
     with st.container(border=True):
         question = st.text_input(
-            "Ask anything about these reviews...",
+            "Ask anything about this data...",
             placeholder="e.g. What is the biggest user complaint?",
             key="product_assistant_question",
         )
@@ -326,4 +381,4 @@ else:
             with st.container(border=True):
                 st.markdown(answer)
 
-st.caption("Built with Streamlit · google-play-scraper")
+st.caption("Built with Streamlit · google-play-scraper · feedparser")

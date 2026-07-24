@@ -3,3 +3,5 @@ pandas
 google-play-scraper
 openai
 python-dotenv
+feedparser
+requests
