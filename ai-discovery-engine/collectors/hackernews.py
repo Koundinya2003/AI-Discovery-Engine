@@ -1,16 +1,20 @@
 """Algolia Hacker News API collector."""
 
-import requests
 import pandas as pd
+import requests
 
 
-def get_reviews(keyword: str) -> pd.DataFrame:
+def get_reviews(keyword: str, count: int = 100) -> pd.DataFrame:
     """Search Hacker News stories/comments by keyword."""
     rows = []
     url = "https://hn.algolia.com/api/v1/search"
-    params = {"query": keyword, "tags": "story", "hitsPerPage": 100}
+    params = {
+        "query": keyword,
+        "tags": "story",
+        "hitsPerPage": count,
+    }
 
-    resp = requests.get(url, params=params)
+    resp = requests.get(url, params=params, timeout=30)
     resp.raise_for_status()
     data = resp.json()
 
@@ -22,7 +26,9 @@ def get_reviews(keyword: str) -> pd.DataFrame:
             "rating": None,
             "author": hit.get("author", ""),
             "date": hit.get("created_at", ""),
-            "url": hit.get("url") or hit.get("story_url") or f"https://news.ycombinator.com/item?id={hit.get('objectID', '')}",
+            "url": hit.get("url")
+            or hit.get("story_url")
+            or f"https://news.ycombinator.com/item?id={hit.get('objectID', '')}",
         })
 
     return pd.DataFrame(rows, columns=[

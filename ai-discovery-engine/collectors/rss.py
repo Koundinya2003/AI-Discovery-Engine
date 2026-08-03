@@ -4,12 +4,12 @@ import feedparser
 import pandas as pd
 
 
-def get_reviews(feed_url: str) -> pd.DataFrame:
+def get_reviews(feed_url: str, count: int = 100) -> pd.DataFrame:
     """Fetch and parse an RSS feed into the common schema."""
     rows = []
     feed = feedparser.parse(feed_url)
 
-    for entry in feed.entries:
+    for entry in feed.entries[:count]:
         rows.append({
             "source": "rss",
             "title": entry.get("title", ""),

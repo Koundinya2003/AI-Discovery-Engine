@@ -76,36 +76,29 @@ def fetch_reviews(
     return result  # type: ignore[return-value]
 
 
-def reviews_to_dataframe(reviews_list: list[dict[str, Any]]) -> pd.DataFrame:
-    """Convert a list of review dicts into a pandas DataFrame.
-
-    Renames columns for readability and keeps only useful fields.
+def reviews_to_dataframe(reviews_list: list[dict[str, Any]], app_id: str = "") -> pd.DataFrame:
+    """Convert a list of review dicts into a pandas DataFrame using the
+    project-wide schema: source, title, review_text, rating, author, date, url.
     """
-    df = pd.DataFrame(reviews_list)
-    if df.empty:
-        return df
+    rows = []
+    for raw in reviews_list:
+        rows.append({
+            "source": "google_play",
+            "title": "",
+            "review_text": raw.get("content", ""),
+            "rating": raw.get("score"),
+            "author": raw.get("userName", ""),
+            "date": raw.get("at", ""),
+            "url": f"https://play.google.com/store/apps/details?id={app_id}",
+        })
 
-    # Keep / rename relevant columns
-    column_map = {
-        "reviewId": "review_id",
-        "content": "review_text",
-        "score": "rating",
-        "at": "date",
-        "userName": "user_name",
-        "thumbsUpCount": "thumbs_up",
-        "replyContent": "reply_content",
-        "repliedAt": "replied_at",
-    }
-    df = df.rename(columns=column_map)
-
-    # Keep only the renamed/mapped columns that actually exist
-    keep_cols = [c for c in column_map.values() if c in df.columns]
-    df = df[keep_cols]
-
-    return df
+    return pd.DataFrame(rows, columns=[
+        "source", "title", "review_text", "rating",
+        "author", "date", "url",
+    ])
 
 
 def get_reviews(app_id: str, count: int | None = None, **kwargs: Any) -> pd.DataFrame:
     """High-level helper: fetch reviews and return a clean DataFrame."""
     raw = fetch_reviews(app_id, count=count, **kwargs)
-    return reviews_to_dataframe(raw)
+    return reviews_to_dataframe(raw, app_id=app_id)

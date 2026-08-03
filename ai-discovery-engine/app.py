@@ -1,6 +1,5 @@
 """AI-Powered Discovery Engine – Streamlit UI."""
 
-import json
 import time
 from datetime import datetime
 
@@ -13,6 +12,7 @@ from collectors.steam import get_reviews as steam_reviews
 from collectors.hackernews import get_reviews as hackernews_reviews
 from collectors.github import get_reviews as github_reviews
 from collectors.rss import get_reviews as rss_reviews
+from utils.helpers import build_markdown_report, parse_analysis_json
 
 st.set_page_config(
     page_title="AI-Powered Discovery Engine",
@@ -33,7 +33,7 @@ with col2:
 
 st.markdown("---")
 
-# ── Session state ──────────────────────────────────────────────────────
+# ── Session state (persists across reruns) ─────────────────────────────
 if "search_results" not in st.session_state:
     st.session_state.search_results = []
 if "selected_app" not in st.session_state:
@@ -48,6 +48,12 @@ if "analysis_df" not in st.session_state:
     st.session_state.analysis_df = None
 if "analysis_source" not in st.session_state:
     st.session_state.analysis_source = None
+if "app_info" not in st.session_state:
+    st.session_state.app_info = None
+if "analysis_data" not in st.session_state:
+    st.session_state.analysis_data = None
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
 # ── Sidebar ────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -146,51 +152,118 @@ with st.sidebar:
 
     analyze_clicked = st.button("Analyze", type="primary", use_container_width=True)
 
-# ── Analysis ───────────────────────────────────────────────────────────
+# ── Analysis (only runs when the Analyze button is clicked) ────────────
 if analyze_clicked:
     if not input_value:
         st.error("Please provide the required input before analyzing.")
         st.stop()
 
-    source_label = source.lower().replace(" ", "_")
+    # Build app info for the report
+    app_info = {"source": source, "input": input_value}
+    if source == "Google Play Reviews" and st.session_state.selected_app:
+        app_info["title"] = st.session_state.selected_app.get("title", "")
+        app_info["appId"] = st.session_state.selected_app.get("appId", "")
+        app_info["developer"] = st.session_state.selected_app.get("developer", "")
 
-    with st.spinner(f"Fetching data from {source}…"):
-        try:
-            if source == "Google Play Reviews":
-                df = playstore_reviews(input_value, count=count_value)
-            elif source == "YouTube Comments":
-                df = youtube_reviews(input_value)
-            elif source == "Steam Reviews":
-                df = steam_reviews(int(input_value))
-            elif source == "Hacker News":
-                df = hackernews_reviews(input_value)
-            elif source == "GitHub Issues":
-                df = github_reviews(input_value)
-            elif source == "RSS Feed":
-                df = rss_reviews(input_value)
-            else:
-                st.error(f"Unknown source: {source}")
-                st.stop()
-        except Exception as exc:
-            st.error(f"Failed to fetch data: {exc}")
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+
+    def _set_progress(pct: int, label: str) -> None:
+        status_text.text(f"{pct}%\n{label}")
+        progress_bar.progress(pct / 100)
+        time.sleep(0.2)
+
+    try:
+        _set_progress(0, "Preparing...")
+        _set_progress(20, "Collecting Data...")
+
+        if source == "Google Play Reviews":
+            df = playstore_reviews(input_value, count=count_value)
+        elif source == "YouTube Comments":
+            df = youtube_reviews(input_value, count=count_value)
+        elif source == "Steam Reviews":
+            df = steam_reviews(int(input_value), count=count_value)
+        elif source == "Hacker News":
+            df = hackernews_reviews(input_value, count=count_value)
+        elif source == "GitHub Issues":
+            df = github_reviews(input_value, count=count_value)
+        elif source == "RSS Feed":
+            df = rss_reviews(input_value, count=count_value)
+        else:
+            st.error(f"Unknown source: {source}")
             st.stop()
 
-    if df.empty:
-        st.warning("No data found. Try a different input or source.")
-        st.stop()
+        _set_progress(40, "Cleaning Data...")
 
-    # Store in session state for display
-    st.session_state.analysis_df = df
-    st.session_state.analysis_source = source
-    st.session_state.analysis_done = True
+        if df.empty:
+            progress_bar.empty()
+            status_text.empty()
+            st.warning("No data found. Try a different input or source.")
+            st.stop()
+
+        # Persist the dataframe and source in session state
+        st.session_state.analysis_df = df
+        st.session_state.analysis_source = source
+        st.session_state.app_info = app_info
+
+        # Build combined review text
+        if "review_text" in df.columns:
+            all_text = "\n".join(df["review_text"].dropna().astype(str).tolist())
+            st.session_state.review_text = all_text if all_text.strip() else None
+        else:
+            st.session_state.review_text = None
+
+        _set_progress(60, "Building Prompt...")
+        _set_progress(80, "Contacting AI...")
+
+        if st.session_state.review_text:
+            try:
+                raw_result = analyze_reviews(st.session_state.review_text)
+            except Exception as exc:
+                progress_bar.empty()
+                status_text.empty()
+                st.error(f"Analysis failed: {exc}")
+                st.stop()
+
+            _set_progress(95, "Generating Insights...")
+
+            # Robust JSON parsing (never crashes)
+            analysis = parse_analysis_json(raw_result)
+            if analysis is None:
+                progress_bar.empty()
+                status_text.empty()
+                st.warning("Could not parse structured analysis.")
+                with st.expander("View Raw AI Response"):
+                    st.markdown(f"**Model used:** `{get_last_model()}`")
+                    st.markdown("**Raw response from OpenRouter:**")
+                    st.code(raw_result, language="text")
+                st.stop()
+
+            st.session_state.analysis_data = analysis
+        else:
+            st.session_state.analysis_data = None
+
+        _set_progress(100, "Complete")
+        time.sleep(0.3)
+        progress_bar.empty()
+        status_text.empty()
+
+        st.session_state.analysis_done = True
+    except Exception as exc:
+        progress_bar.empty()
+        status_text.empty()
+        st.error(f"Failed to fetch data: {exc}")
+        st.stop()
 
 # ── Display Results ────────────────────────────────────────────────────
 if st.session_state.analysis_done and st.session_state.analysis_df is not None:
     df = st.session_state.analysis_df
     source = st.session_state.analysis_source
+    analysis = st.session_state.analysis_data
+    app_info = st.session_state.app_info
 
     # Show source label
-    st.markdown(f"### Source")
+    st.markdown("### Source")
     st.markdown(f"**{source}**")
 
     st.markdown("---")
@@ -222,181 +295,69 @@ if st.session_state.analysis_done and st.session_state.analysis_df is not None:
     st.markdown("---")
 
     # ── AI Insights ─────────────────────────────────────────────────────
-    if "review_text" in df.columns:
-        all_text = "\n".join(df["review_text"].dropna().astype(str).tolist())
-        if all_text.strip():
-            st.session_state.review_text = all_text
+    if analysis:
+        st.subheader("🧠 AI Insights")
+        st.caption(f"Model used: `{get_last_model()}`")
 
-            progress_bar = st.progress(0)
-            status_text = st.empty()
+        with st.container(border=True):
+            st.markdown("### 📋 Executive Summary")
+            st.write(analysis.get("executive_summary", ""))
 
-            progress_stages = [
-                (10, "Preparing data..."),
-                (25, "Cleaning reviews..."),
-                (45, "Building AI prompt..."),
-                (65, "Contacting AI..."),
-                (90, "Waiting for AI response..."),
-            ]
-
-            for progress_value, message in progress_stages:
-                status_text.text(message)
-                progress_bar.progress(progress_value)
-                time.sleep(0.2)
-
-            # Call analyze_reviews while the progress bar is at 90%
-            try:
-                raw_result = analyze_reviews(all_text)
-            except Exception as exc:
-                progress_bar.empty()
-                status_text.empty()
-                st.error(f"Analysis failed: {exc}")
-                st.stop()
-
-            # Complete the progress bar once the AI response is received
-            progress_bar.progress(100)
-            status_text.text("Analysis Complete!")
-            time.sleep(0.5)
-            progress_bar.empty()
-            status_text.empty()
-
-            st.subheader("🧠 AI Insights")
-
-            # Robust JSON extraction: strip code fences, trim whitespace, and
-            # isolate the JSON object between the first '{' and the last '}'.
-            def _extract_json(text: str) -> str:
-                # Remove Markdown code fences (e.g. ```json ... ```).
-                text = text.strip()
-                if text.startswith("```"):
-                    # Drop the opening fence line.
-                    text = text.split("\n", 1)[-1] if "\n" in text else ""
-                    # Drop a trailing fence if present.
-                    if text.rstrip().endswith("```"):
-                        text = text.rstrip()[:-3]
-                text = text.strip()
-
-                # If there is extra text before/after the JSON, keep only the
-                # substring between the first '{' and the last '}'.
-                first_brace = text.find("{")
-                last_brace = text.rfind("}")
-                if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
-                    text = text[first_brace : last_brace + 1]
-
-                return text.strip()
-
-            try:
-                cleaned = _extract_json(raw_result)
-                data = json.loads(cleaned)
-            except (json.JSONDecodeError, ValueError):
-                st.warning("Could not parse structured analysis.")
-                with st.expander("View Raw AI Response"):
-                    st.markdown(f"**Model used:** `{get_last_model()}`")
-                    st.markdown("**Raw response from OpenRouter:**")
-                    st.code(raw_result, language="text")
-                st.stop()
-
-            with st.container(border=True):
-                st.markdown("### 📋 Executive Summary")
-                st.write(data.get("executive_summary", ""))
-
-            pain_points = data.get("pain_points", [])
-            if pain_points:
-                st.markdown("### 🔴 Top Pain Points")
-                for pp in pain_points:
-                    with st.container(border=True):
-                        st.markdown(f"**{pp.get('title', '')}**  \n*Frequency: {pp.get('frequency', '')}*")
-                        st.write(pp.get("description", ""))
-                        quotes = pp.get("quotes", [])
-                        if quotes:
-                            for q in quotes:
-                                st.markdown(f"> “{q}”")
-
-            feature_requests = data.get("feature_requests", [])
-            if feature_requests:
-                st.markdown("### 💡 Most Requested Features")
-                for fr in feature_requests:
-                    with st.container(border=True):
-                        st.markdown(f"**{fr.get('title', '')}**")
-                        st.write(fr.get("description", ""))
-
-            positive_feedback = data.get("positive_feedback", [])
-            if positive_feedback:
-                st.markdown("### ✅ Positive Feedback")
-                for fb in positive_feedback:
-                    st.markdown(f"- {fb}")
-
-            sentiment = data.get("sentiment", {})
-            if sentiment:
+        pain_points = analysis.get("pain_points", [])
+        if pain_points:
+            st.markdown("### 🔴 Top Pain Points")
+            for pp in pain_points:
                 with st.container(border=True):
-                    st.markdown(f"### 📊 User Sentiment: {sentiment.get('overall', '')}")
-                    st.write(sentiment.get("reason", ""))
+                    st.markdown(f"**{pp.get('title', '')}**  \n*Frequency: {pp.get('frequency', '')}*")
+                    st.write(pp.get("description", ""))
+                    quotes = pp.get("quotes", [])
+                    if quotes:
+                        for q in quotes:
+                            st.markdown(f"> “{q}”")
 
-            opportunities = data.get("product_opportunities", [])
-            if opportunities:
-                st.markdown("### 🚀 Product Opportunities")
-                for opp in opportunities:
-                    with st.container(border=True):
-                        st.markdown(f"**{opp.get('title', '')}**  \n*Impact: {opp.get('impact', '')}*")
-                        st.write(opp.get("reason", ""))
+        feature_requests = analysis.get("feature_requests", [])
+        if feature_requests:
+            st.markdown("### 💡 Most Requested Features")
+            for fr in feature_requests:
+                with st.container(border=True):
+                    st.markdown(f"**{fr.get('title', '')}**")
+                    st.write(fr.get("description", ""))
 
-            def _build_markdown_report(data, review_count, source_label):
-                lines = []
-                lines.append("# AI-Powered Discovery Report")
-                lines.append("")
-                lines.append(f"**Source:** {source}")
-                lines.append(f"**Items Analyzed:** {review_count}")
-                lines.append("")
-                lines.append("## Executive Summary")
-                lines.append(data.get("executive_summary", ""))
-                lines.append("")
-                pain_points = data.get("pain_points", [])
-                if pain_points:
-                    lines.append("## Top Pain Points")
-                    for pp in pain_points:
-                        lines.append(f"### {pp.get('title', '')}")
-                        lines.append(f"- **Frequency:** {pp.get('frequency', '')}")
-                        lines.append(f"- {pp.get('description', '')}")
-                        for q in pp.get("quotes", []):
-                            lines.append(f"> “{q}”")
-                        lines.append("")
-                feature_requests = data.get("feature_requests", [])
-                if feature_requests:
-                    lines.append("## Most Requested Features")
-                    for fr in feature_requests:
-                        lines.append(f"### {fr.get('title', '')}")
-                        lines.append(fr.get("description", ""))
-                        lines.append("")
-                positive_feedback = data.get("positive_feedback", [])
-                if positive_feedback:
-                    lines.append("## Positive Feedback")
-                    for fb in positive_feedback:
-                        lines.append(f"- {fb}")
-                    lines.append("")
-                sentiment = data.get("sentiment", {})
-                if sentiment:
-                    lines.append("## User Sentiment")
-                    lines.append(f"**{sentiment.get('overall', '')}**")
-                    lines.append(sentiment.get("reason", ""))
-                    lines.append("")
-                opportunities = data.get("product_opportunities", [])
-                if opportunities:
-                    lines.append("## Product Opportunities")
-                    for opp in opportunities:
-                        lines.append(f"### {opp.get('title', '')}")
-                        lines.append(f"- **Impact:** {opp.get('impact', '')}")
-                        lines.append(f"- {opp.get('reason', '')}")
-                        lines.append("")
-                lines.append("---")
-                lines.append(f"*Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}*")
-                return "\n".join(lines)
+        positive_feedback = analysis.get("positive_feedback", [])
+        if positive_feedback:
+            st.markdown("### ✅ Positive Feedback")
+            for fb in positive_feedback:
+                st.markdown(f"- {fb}")
 
-            report_md = _build_markdown_report(data, len(df), source_label)
-            safe_name = source_label
-            st.download_button(
-                label="📄 Download Analysis Report",
-                data=report_md,
-                file_name=f"{safe_name}_analysis.md",
-                mime="text/markdown",
-            )
+        sentiment = analysis.get("sentiment", {})
+        if sentiment:
+            with st.container(border=True):
+                st.markdown(f"### 📊 User Sentiment: {sentiment.get('overall', '')}")
+                st.write(sentiment.get("reason", ""))
+
+        opportunities = analysis.get("product_opportunities", [])
+        if opportunities:
+            st.markdown("### 🚀 Product Opportunities")
+            for opp in opportunities:
+                with st.container(border=True):
+                    st.markdown(f"**{opp.get('title', '')}**  \n*Impact: {opp.get('impact', '')}*")
+                    st.write(opp.get("reason", ""))
+
+        # ── Download Report ─────────────────────────────────────────────
+        report_md = build_markdown_report(
+            app_info=app_info,
+            source_label=source,
+            analysis=analysis,
+            review_count=len(df),
+            timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        )
+        safe_name = source.lower().replace(" ", "_")
+        st.download_button(
+            label="📄 Download Analysis Report",
+            data=report_md,
+            file_name=f"{safe_name}_analysis.md",
+            mime="text/markdown",
+        )
 
 st.markdown("---")
 
@@ -404,7 +365,7 @@ st.markdown("---")
 st.subheader("🤖 AI Product Assistant")
 
 if st.session_state.review_text is None:
-    st.info("Analyze data from any source first.")
+    st.info("Please analyze a data source first.")
 else:
     with st.container(border=True):
         question = st.text_input(
@@ -418,14 +379,26 @@ else:
             with st.spinner("Thinking…"):
                 try:
                     answer = ask_about_reviews(
-                        question.strip(),
                         st.session_state.review_text,
+                        question.strip(),
                     )
                 except Exception as exc:
                     st.error(f"Failed to get answer: {exc}")
                     st.stop()
 
+            # Persist the Q&A in chat history
+            st.session_state.chat_history.append({
+                "question": question.strip(),
+                "answer": answer,
+                "model": get_last_model(),
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            })
+
+        # Display chat history (allows multiple questions without rerunning analysis)
+        for entry in st.session_state.chat_history:
             with st.container(border=True):
-                st.markdown(answer)
+                st.markdown(f"**Q:** {entry['question']}")
+                st.markdown(f"**A:** {entry['answer']}")
+                st.caption(f"Model: `{entry['model']}` · {entry['time']}")
 
 st.caption("Built with Streamlit · google-play-scraper · feedparser")

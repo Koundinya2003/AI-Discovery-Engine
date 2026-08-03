@@ -1,28 +1,27 @@
 """GitHub REST API collector for issues."""
 
-import os
-import requests
 import pandas as pd
-from dotenv import load_dotenv
+import requests
 
-load_dotenv()
+from utils.helpers import get_api_key
 
 
-def get_reviews(query: str, repo: str = "") -> pd.DataFrame:
-    """Search GitHub issues by query. Optionally scope to a repo (owner/name)."""
+def get_reviews(repo: str, count: int = 100) -> pd.DataFrame:
+    """Search GitHub issues within a repository (owner/name)."""
     headers = {"Accept": "application/vnd.github.v3+json"}
-    token = os.getenv("GITHUB_TOKEN")
+    token = get_api_key("GITHUB_TOKEN")
     if token:
         headers["Authorization"] = f"Bearer {token}"
 
     rows = []
     url = "https://api.github.com/search/issues"
-    q = f"{query} type:issue"
-    if repo:
-        q += f" repo:{repo}"
-    params = {"q": q, "per_page": 100, "sort": "updated"}
+    params = {
+        "q": f"repo:{repo} type:issue",
+        "per_page": min(count, 100),
+        "sort": "updated",
+    }
 
-    resp = requests.get(url, headers=headers, params=params)
+    resp = requests.get(url, headers=headers, params=params, timeout=30)
     resp.raise_for_status()
     data = resp.json()
 
