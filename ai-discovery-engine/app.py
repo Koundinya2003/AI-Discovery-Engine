@@ -1,6 +1,7 @@
 """AI-Powered Discovery Engine – Streamlit UI."""
 
 import json
+import time
 from datetime import datetime
 
 import streamlit as st
@@ -226,12 +227,37 @@ if st.session_state.analysis_done and st.session_state.analysis_df is not None:
         if all_text.strip():
             st.session_state.review_text = all_text
 
-            with st.spinner("Analyzing with AI…"):
-                try:
-                    raw_result = analyze_reviews(all_text)
-                except Exception as exc:
-                    st.error(f"Analysis failed: {exc}")
-                    st.stop()
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+
+            progress_stages = [
+                (10, "Preparing data..."),
+                (25, "Cleaning reviews..."),
+                (45, "Building AI prompt..."),
+                (65, "Contacting AI..."),
+                (90, "Waiting for AI response..."),
+            ]
+
+            for progress_value, message in progress_stages:
+                status_text.text(message)
+                progress_bar.progress(progress_value)
+                time.sleep(0.2)
+
+            # Call analyze_reviews while the progress bar is at 90%
+            try:
+                raw_result = analyze_reviews(all_text)
+            except Exception as exc:
+                progress_bar.empty()
+                status_text.empty()
+                st.error(f"Analysis failed: {exc}")
+                st.stop()
+
+            # Complete the progress bar once the AI response is received
+            progress_bar.progress(100)
+            status_text.text("Analysis Complete!")
+            time.sleep(0.5)
+            progress_bar.empty()
+            status_text.empty()
 
             st.subheader("🧠 AI Insights")
 
