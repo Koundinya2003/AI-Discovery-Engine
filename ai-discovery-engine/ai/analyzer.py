@@ -7,6 +7,15 @@ from utils.helpers import get_openrouter_api_key, get_openrouter_model
 # How many characters of combined review text to keep for the LLM call.
 _MAX_INPUT_CHARS = 15_000
 
+# The model identifier most recently used by analyze_reviews, kept so the UI
+# can display which model produced the response (e.g. in the fallback view).
+_LAST_MODEL = None
+
+
+def get_last_model() -> str:
+    """Return the model identifier most recently used by analyze_reviews."""
+    return _LAST_MODEL
+
 _SYSTEM_PROMPT = (
     "You are a product analyst. Given a set of user reviews, "
     "return your analysis as valid JSON only. "
@@ -96,10 +105,16 @@ def analyze_reviews(reviews_text: str) -> str:
         max_tokens=4096,
     )
 
+    # Log the actual model used for debugging.
+    global _LAST_MODEL
+    _LAST_MODEL = response.model
+    print(f"[analyze_reviews] Model used: {response.model}")
+
     content = response.choices[0].message.content
     if content is None:
         raise RuntimeError("OpenRouter returned an empty response.")
 
+    # Return the response text exactly as received (no cleaning/parsing here).
     return content
 
 

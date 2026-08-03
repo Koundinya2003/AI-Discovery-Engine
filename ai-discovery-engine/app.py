@@ -6,7 +6,7 @@ from datetime import datetime
 
 import streamlit as st
 
-from ai.analyzer import analyze_reviews, ask_about_reviews
+from ai.analyzer import analyze_reviews, ask_about_reviews, get_last_model
 from collectors.playstore import get_reviews as playstore_reviews, search_apps
 from collectors.youtube import get_reviews as youtube_reviews
 from collectors.steam import get_reviews as steam_reviews
@@ -261,16 +261,37 @@ if st.session_state.analysis_done and st.session_state.analysis_df is not None:
 
             st.subheader("🧠 AI Insights")
 
+            # Robust JSON extraction: strip code fences, trim whitespace, and
+            # isolate the JSON object between the first '{' and the last '}'.
+            def _extract_json(text: str) -> str:
+                # Remove Markdown code fences (e.g. ```json ... ```).
+                text = text.strip()
+                if text.startswith("```"):
+                    # Drop the opening fence line.
+                    text = text.split("\n", 1)[-1] if "\n" in text else ""
+                    # Drop a trailing fence if present.
+                    if text.rstrip().endswith("```"):
+                        text = text.rstrip()[:-3]
+                text = text.strip()
+
+                # If there is extra text before/after the JSON, keep only the
+                # substring between the first '{' and the last '}'.
+                first_brace = text.find("{")
+                last_brace = text.rfind("}")
+                if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+                    text = text[first_brace : last_brace + 1]
+
+                return text.strip()
+
             try:
-                cleaned = raw_result.strip()
-                if cleaned.startswith("```"):
-                    cleaned = cleaned.strip("`").strip()
-                    if cleaned.startswith("json"):
-                        cleaned = cleaned[4:].strip()
+                cleaned = _extract_json(raw_result)
                 data = json.loads(cleaned)
             except (json.JSONDecodeError, ValueError):
-                st.warning("Could not parse structured analysis. Showing raw response:")
-                st.markdown(raw_result)
+                st.warning("Could not parse structured analysis.")
+                with st.expander("View Raw AI Response"):
+                    st.markdown(f"**Model used:** `{get_last_model()}`")
+                    st.markdown("**Raw response from OpenRouter:**")
+                    st.code(raw_result, language="text")
                 st.stop()
 
             with st.container(border=True):
