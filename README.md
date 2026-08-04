@@ -14,18 +14,6 @@ An AI-powered product discovery tool that collects user feedback from multiple p
 
 ---
 
-## 📸 Screenshots
-
-| Landing Page | AI Insights |
-|--------------|-------------|
-| *(Add Screenshot)* | *(Add Screenshot)* |
-
-| Product Assistant | Report Export |
-|-------------------|---------------|
-| *(Add Screenshot)* | *(Add Screenshot)* |
-
----
-
 # 📖 Overview
 
 Understanding what users actually want is difficult.
