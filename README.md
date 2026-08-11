@@ -10,7 +10,7 @@ An AI-powered product discovery tool that collects user feedback from multiple p
 
 **Live App:** https://ai-discovery-engine-qvyj7zoldaky6kcbtphw3q.streamlit.app/
 
-**GitHub:** https://github.com/<your-username>/ai-powered-discovery-engine
+**GitHub:** https://github.com/Koundinya2003/AI-Discovery-Engine
 
 ---
 
@@ -232,9 +232,9 @@ Export Report
 ## Clone the Repository
 
 ```bash
-git clone https://github.com/<your-username>/ai-powered-discovery-engine.git
+git clone https://github.com/Koundinya2003/AI-Discovery-Engine.git
 
-cd ai-powered-discovery-engine
+cd AI-Discovery-Engine
 ```
 
 ---
@@ -312,8 +312,8 @@ This project is licensed under the MIT License.
 
 **Aditya K. Koundinya**
 
-- GitHub: https://github.com/<your-username>
-- LinkedIn: https://linkedin.com/in/<your-linkedin>
+- GitHub: https://github.com/Koundinya2003
+- LinkedIn: https://www.linkedin.com/in/adityakkoundinya/
 
 ---
 
