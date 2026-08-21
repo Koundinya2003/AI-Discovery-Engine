@@ -1,314 +1,40 @@
-# 🔍 AI-Powered Discovery Engine
+# 🔍 Discovery Engine
 
-> Transform unstructured user feedback into actionable product insights using AI.
+> Search a product once, across every source at once — themes are discovered from what users actually said, not sorted into a fixed category list.
 
-An AI-powered product discovery tool that collects user feedback from multiple public sources, analyzes it using Large Language Models (OpenRouter), and converts thousands of reviews into structured product insights, pain points, feature requests, and opportunities.
+A Next.js app that collects reviews and discussion about a product from the Play Store, App Store, YouTube, and community forums **in parallel**, then uses Groq (a pinned, explicit model — no auto-router) to discover and name specific themes grounded in the data, with representative quotes, relative-frequency bars, and a grounded "Ask the discovery engine" Q&A box.
 
----
-
-## 🚀 Demo
-
-**Live App:** https://ai-discovery-engine-qvyj7zoldaky6kcbtphw3q.streamlit.app/
+This replaces an earlier Streamlit prototype that collected from one source at a time and sorted feedback into a fixed taxonomy. The rebuild exists to fix two bugs found testing that prototype live (a Play Store search bug and an LLM auto-routing bug) and to add multi-source parallel collection plus data-driven theme discovery — see [`discovery-engine/README.md`](discovery-engine/README.md#fixing-the-two-bugs-from-the-streamlit-prototype) for the details.
 
 **GitHub:** https://github.com/Koundinya2003/AI-Discovery-Engine
 
 ---
 
-# 📖 Overview
+## The app lives in [`discovery-engine/`](discovery-engine/)
 
-Understanding what users actually want is difficult.
+That directory's [README](discovery-engine/README.md) is the source of truth for:
 
-Product managers spend countless hours reading:
+- Architecture and the two-pass theme discovery design
+- All four data sources and their compliance notes (what's an official API, what's a gray-zone unofficial library, and why Reddit is deliberately excluded)
+- Setup instructions and environment variables
+- Deploying to Vercel
 
-- Google Play Reviews
-- GitHub Issues
-- Hacker News discussions
-- YouTube Comments
-- RSS articles
-- Steam Reviews
-
-This project automates that process using AI.
-
-Instead of manually reading hundreds of reviews, users receive structured insights within seconds.
-
----
-
-# ✨ Features
-
-### 📱 Multi-Source Data Collection
-
-Supports:
-
-- ✅ Google Play Reviews
-- ✅ YouTube Comments
-- ✅ Steam Reviews
-- ✅ GitHub Issues
-- ✅ Hacker News
-- ✅ RSS Feeds
-
----
-
-### 🤖 AI-Powered Review Analysis
-
-Automatically generates:
-
-- Executive Summary
-- Pain Points
-- Feature Requests
-- Positive Feedback
-- User Sentiment
-- Product Opportunities
-
----
-
-### 💬 AI Product Assistant
-
-Ask natural language questions like:
-
-- What is the biggest complaint?
-- Which feature should be prioritized?
-- What do 1-star users hate?
-- Why are users uninstalling?
-- What opportunities exist for competitors?
-
----
-
-### 📊 Interactive Dashboard
-
-Displays
-
-- Reviews collected
-- Average Rating
-- Rating Distribution
-- Raw Data Explorer
-- AI Insights
-- Product Opportunities
-
----
-
-### 📄 Export Report
-
-Download the complete AI analysis as a Markdown report.
-
----
-
-# 🏗 Architecture
-
-```
-                    User
-                      │
-                      ▼
-               Streamlit Frontend
-                      │
-        ┌─────────────┴─────────────┐
-        │                           │
-        ▼                           ▼
- Data Collectors              OpenRouter API
-        │                           │
-        ▼                           ▼
-   Clean Data                LLM Analysis
-        │                           │
-        └─────────────┬─────────────┘
-                      ▼
-            Structured Insights
-                      │
-                      ▼
-            Product Dashboard
-```
-
----
-
-# 📂 Project Structure
-
-```
-ai-discovery-engine/
-│
-├── app.py
-├── README.md
-├── requirements.txt
-│
-├── ai/
-│   └── analyzer.py
-│
-├── collectors/
-│   ├── playstore.py
-│   ├── youtube.py
-│   ├── steam.py
-│   ├── github.py
-│   ├── hackernews.py
-│   └── rss.py
-│
-├── utils/
-│   └── helpers.py
-│
-└── data/
-```
-
----
-
-# 🛠 Tech Stack
-
-### Frontend
-
-- Streamlit
-
-### AI
-
-- OpenRouter
-- Large Language Models (LLMs)
-
-### Data Collection
-
-- google-play-scraper
-- YouTube Data API
-- GitHub REST API
-- Hacker News API
-- RSS Parser
-- Steam Reviews API
-
-### Backend
-
-- Python
-- Pandas
-
----
-
-# 🔄 Workflow
-
-```
-Select Data Source
-        │
-        ▼
-Collect Reviews
-        │
-        ▼
-Clean & Format Data
-        │
-        ▼
-OpenRouter LLM
-        │
-        ▼
-Generate Insights
-        │
-        ▼
-Interactive Dashboard
-        │
-        ▼
-Export Report
-```
-
----
-
-# 📊 Example Output
-
-### Executive Summary
-
-> Users appreciate the speed and convenience of the application but consistently report problems with account authentication, inconsistent delivery experience, and customer support responsiveness.
-
----
-
-### Top Pain Points
-
-- Login failures
-- Delayed deliveries
-- Missing orders
-- Poor customer support
-- App crashes
-
----
-
-### Product Opportunities
-
-- Simplify authentication
-- Improve order tracking
-- Enhance customer support
-- Personalized recommendations
-- Better onboarding
-
----
-
-# ⚡ Getting Started
-
-## Clone the Repository
+## Quick start
 
 ```bash
-git clone https://github.com/Koundinya2003/AI-Discovery-Engine.git
-
-cd AI-Discovery-Engine
+cd discovery-engine
+npm install
+cp .env.local.example .env.local   # fill in GROQ_API_KEY at minimum
+npm run dev
 ```
 
----
+Open [http://localhost:3000](http://localhost:3000), enter a product name (e.g. "Nykaa Fashion"), and optionally its exact App Store ID / Play Store package if you know them.
 
-## Install Dependencies
+## Tech stack
 
-```bash
-pip install -r requirements.txt
-```
+Next.js 16 (App Router) · TypeScript · Tailwind CSS · Groq (`llama-3.3-70b-versatile`, pinned) · deployed on Vercel
 
----
-
-## Configure Environment Variables
-
-Create a `.env`
-
-```env
-OPENROUTER_API_KEY=your_api_key
-OPENROUTER_MODEL=openrouter/free
-
-YOUTUBE_API_KEY=your_youtube_api_key
-
-GITHUB_TOKEN=your_github_token
-```
-
----
-
-## Run
-
-```bash
-streamlit run app.py
-```
-
----
-
-# 🎯 Use Cases
-
-- Product Managers
-- Product Analysts
-- UX Researchers
-- Startup Founders
-- Growth Teams
-- Customer Experience Teams
-
----
-
-# 🚀 Future Improvements
-
-- Support additional review platforms
-- Trend analysis over time
-- Sentiment visualization
-- Competitor comparison
-- PDF report generation
-- Interactive charts
-- Team collaboration
-- Automated scheduled reports
-
----
-
-# 🤝 Contributing
-
-Contributions, suggestions, and feature requests are welcome.
-
-Feel free to fork the repository and submit a pull request.
-
----
-
-# 📜 License
-
-This project is licensed under the MIT License.
-
----
-
-# 👨‍💻 Author
+## 👨‍💻 Author
 
 **Aditya K. Koundinya**
 

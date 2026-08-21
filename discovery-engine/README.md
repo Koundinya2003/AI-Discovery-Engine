@@ -2,7 +2,7 @@
 
 A Next.js app that collects reviews and discussion about a product from **all** configured sources at once — Play Store, App Store, YouTube, and community forums — in parallel, and uses **Groq** (a pinned, explicit model, not an auto-router) to discover and name specific themes grounded in what users actually said, instead of sorting reviews into a fixed category list.
 
-This is a rebuild of an earlier Streamlit prototype (`../ai-discovery-engine/`), not a patch. It exists to fix two bugs found while testing that prototype live, and to add multi-source parallel collection plus data-driven theme discovery. See [What changed vs. the Streamlit prototype](#what-changed-vs-the-streamlit-prototype) below.
+This is a rebuild of an earlier Streamlit prototype, not a patch — the Streamlit app has been removed from this repo now that this version replaces it. It exists to fix two bugs found while testing that prototype live, and to add multi-source parallel collection plus data-driven theme discovery. See [What changed vs. the Streamlit prototype](#what-changed-vs-the-streamlit-prototype) below.
 
 ## Architecture
 
