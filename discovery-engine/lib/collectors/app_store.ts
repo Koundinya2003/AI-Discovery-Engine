@@ -6,6 +6,7 @@
 // no ToS gray area.
 
 import type { CollectedItem } from "@/lib/types";
+import { fetchWithTimeout, withRetry } from "@/lib/http";
 
 const COUNTRY = "in";
 const MAX_PAGES = 5; // RSS feed pages (~50 reviews/page) -> up to ~250 reviews
@@ -22,7 +23,7 @@ export async function resolveAppStoreId(productName: string): Promise<{ id: stri
   url.searchParams.set("entity", "software");
   url.searchParams.set("limit", "5");
 
-  const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+  const res = await withRetry(() => fetchWithTimeout(url.toString(), { headers: { Accept: "application/json" } }));
   if (!res.ok) throw new Error(`iTunes search failed: ${res.status}`);
   const data = (await res.json()) as { results: ITunesSearchResult[] };
   if (!data.results?.length) return null;
@@ -42,7 +43,7 @@ type RssFeedEntry = {
 
 async function fetchReviewPage(appStoreId: string, page: number): Promise<RssFeedEntry[]> {
   const url = `https://itunes.apple.com/${COUNTRY}/rss/customerreviews/page=${page}/id=${appStoreId}/sortBy=mostRecent/json`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const res = await withRetry(() => fetchWithTimeout(url, { headers: { Accept: "application/json" } }));
   if (!res.ok) {
     if (res.status === 404) return [];
     throw new Error(`App Store RSS failed: ${res.status}`);

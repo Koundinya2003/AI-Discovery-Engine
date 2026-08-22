@@ -6,6 +6,8 @@ import { collectYouTube } from "@/lib/collectors/youtube";
 import { collectForums } from "@/lib/collectors/forums";
 import { discoverThemes } from "@/lib/groq/themes";
 import { classifyItems } from "@/lib/groq/classify";
+import { checkRateLimit, buildDiscoverCacheKey, getCachedDiscoverResult, setCachedDiscoverResult } from "@/lib/redis";
+import { log } from "@/lib/logger";
 
 // Vercel Hobby allows up to 60s for a Node.js serverless function with this
 // declared. A full run (4 parallel collectors + 1 theme-discovery Groq call +
@@ -14,8 +16,15 @@ import { classifyItems } from "@/lib/groq/classify";
 export const maxDuration = 60;
 
 const SOURCES: SourceKind[] = ["app_store", "play_store", "youtube", "forum"];
+const MAX_PRODUCT_NAME_LENGTH = 200;
+
+function clientIdentifier(req: NextRequest): string {
+  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+}
 
 export async function POST(req: NextRequest) {
+  const startedAt = Date.now();
+
   let body: DiscoverRequest;
   try {
     body = await req.json();
@@ -27,12 +36,37 @@ export async function POST(req: NextRequest) {
   if (!productName) {
     return NextResponse.json({ error: "productName is required" }, { status: 400 });
   }
+  if (productName.length > MAX_PRODUCT_NAME_LENGTH) {
+    return NextResponse.json({ error: `productName must be ${MAX_PRODUCT_NAME_LENGTH} characters or fewer` }, { status: 400 });
+  }
+
+  const identifier = clientIdentifier(req);
+  const rateLimit = await checkRateLimit("discover", identifier);
+  if (rateLimit.limited) {
+    log.info("discover.rate_limited", { identifier, retryAfterSeconds: rateLimit.retryAfterSeconds });
+    return NextResponse.json(
+      { error: "Rate limit exceeded. Try again shortly." },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds ?? 60) } }
+    );
+  }
+
+  const cacheKey = buildDiscoverCacheKey(productName, body.appStoreId, body.playPackage);
+  const cached = await getCachedDiscoverResult(cacheKey);
+  if (cached) {
+    log.info("discover.cache_hit", { productName, cacheKey });
+    return NextResponse.json({ ...cached, cached: true });
+  }
+
+  log.info("discover.start", { productName, identifier });
+
+  const youtubeConfigured = Boolean(process.env.YOUTUBE_API_KEY);
+  const forumConfigured = Boolean(process.env.SEARCH_PROVIDER || process.env.GOOGLE_CSE_API_KEY);
 
   const [appStoreResult, playStoreResult, youtubeResult, forumsResult] = await Promise.allSettled([
     collectAppStore(productName, body.appStoreId),
     collectPlayStore(productName, body.playPackage),
-    process.env.YOUTUBE_API_KEY ? collectYouTube(productName) : Promise.resolve({ items: [] as CollectedItem[] }),
-    process.env.SEARCH_PROVIDER || process.env.GOOGLE_CSE_API_KEY
+    youtubeConfigured ? collectYouTube(productName) : Promise.resolve({ items: [] as CollectedItem[] }),
+    forumConfigured
       ? collectForums(productName)
       : Promise.resolve({ items: [] as CollectedItem[], perDomainStats: [] as SourceStat[] }),
   ]);
@@ -78,14 +112,27 @@ export async function POST(req: NextRequest) {
     warnings.push(`Forum collection failed: ${forumsResult.reason}`);
   }
 
+  const NOT_CONFIGURED: Partial<Record<SourceKind, string>> = {
+    youtube: youtubeConfigured ? undefined : "YOUTUBE_API_KEY not configured",
+    forum: forumConfigured ? undefined : "SEARCH_PROVIDER/GOOGLE_CSE_API_KEY not configured",
+  };
+
   for (const s of SOURCES) {
     const stat = stats.find((x) => x.source === s);
-    if (stat && stat.count === 0 && !stat.error) {
-      warnings.push(`${stat.label} returned zero items.`);
-    }
+    if (!stat || stat.count > 0 || stat.error) continue;
+    const skipReason = NOT_CONFIGURED[s];
+    warnings.push(skipReason ? `${stat.label} skipped: ${skipReason}.` : `${stat.label} returned zero items.`);
   }
 
+  log.info("discover.collected", {
+    productName,
+    itemsScraped: items.length,
+    stats: stats.map((s) => ({ source: s.source, count: s.count, error: s.error })),
+    durationMs: Date.now() - startedAt,
+  });
+
   if (items.length === 0) {
+    log.error("discover.no_items", { productName, warnings });
     return NextResponse.json(
       { error: "No items were collected from any source. See warnings for details.", warnings },
       { status: 502 }
@@ -96,6 +143,7 @@ export async function POST(req: NextRequest) {
   try {
     themes = await discoverThemes(productName, items);
   } catch (err) {
+    log.error("discover.theme_discovery_failed", { productName, error: String(err) });
     return NextResponse.json(
       { error: `Theme discovery failed: ${err instanceof Error ? err.message : String(err)}` },
       { status: 502 }
@@ -122,6 +170,16 @@ export async function POST(req: NextRequest) {
     corpus,
     warnings,
   };
+
+  await setCachedDiscoverResult(cacheKey, response);
+
+  log.info("discover.complete", {
+    productName,
+    itemsScraped: items.length,
+    itemsClassified: corpus.length,
+    themeCount: themeResults.length,
+    durationMs: Date.now() - startedAt,
+  });
 
   return NextResponse.json(response);
 }

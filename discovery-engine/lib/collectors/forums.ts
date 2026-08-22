@@ -16,6 +16,7 @@
 
 import * as cheerio from "cheerio";
 import type { CollectedItem, SourceStat } from "@/lib/types";
+import { fetchWithTimeout } from "@/lib/http";
 
 const DEFAULT_DOMAINS = ["onlytechforum.in", "pissedconsumer.com", "quora.com"];
 const MAX_ITEMS = Number(process.env.FORUM_MAX_ITEMS ?? 120);
@@ -100,13 +101,12 @@ function domainLabel(domain: string): string {
 }
 
 async function fetchMainText(url: string): Promise<string> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const res = await fetch(url, {
-      signal: controller.signal,
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; DiscoveryEngineBot/1.0)" },
-    });
+    const res = await fetchWithTimeout(
+      url,
+      { headers: { "User-Agent": "Mozilla/5.0 (compatible; DiscoveryEngineBot/1.0)" } },
+      FETCH_TIMEOUT_MS
+    );
     if (!res.ok) return "";
     const html = await res.text();
     const $ = cheerio.load(html);
@@ -115,8 +115,6 @@ async function fetchMainText(url: string): Promise<string> {
     return text.slice(0, 4000); // cap per-page text to keep the item set token-friendly
   } catch {
     return "";
-  } finally {
-    clearTimeout(timeout);
   }
 }
 

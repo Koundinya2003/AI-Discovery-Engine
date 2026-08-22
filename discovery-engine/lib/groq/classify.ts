@@ -1,16 +1,25 @@
 // Pass 2 of the two-pass theme discovery design: classify every item in the
 // (capped) working set against the theme list discovered in pass 1.
 //
-// Batched at 18 items/call (within the 15-20 spec range) to stay well under
-// Groq's 6,000 TPM free-tier cap, and capped in total (CLASSIFY_MAX_ITEMS)
-// so a full discover run finishes inside a serverless function's time
-// budget — see README for the exact numbers and why they're tuned this way.
-
+// Both BATCH_SIZE and CLASSIFY_MAX_ITEMS were tuned against this account's
+// *actual* Groq free-tier limits, measured live via response headers rather
+// than trusting the docs: the pinned model's real cap is 8,000 TPM (not the
+// 6,000 documented), it's a reasoning model that burns 500-1,400 completion
+// tokens per call on hidden chain-of-thought before it writes any JSON, and
+// pass-1 theme discovery alone uses ~4,200 of that budget before pass 2 even
+// starts. The original defaults (BATCH_SIZE 18, CLASSIFY_MAX_ITEMS 200,
+// max_tokens 1500) were sized against the documented 6,000 TPM figure — in
+// practice that meant ~90% of a run's batches got 429'd and silently fell
+// back to OTH, and even a batch that fit the TPM budget could still get cut
+// off mid-JSON ("max completion tokens reached before generating a valid
+// document") because 18 items' worth of output plus the reasoning tax didn't
+// reliably fit in 1500 completion tokens. See README "Tuning & limits" for
+// how to raise these if you have Dev Tier headroom.
 import type { ClassifiedTag, CollectedItem, Theme } from "@/lib/types";
 import { callGroqJsonWithRetry, type GroqMessage } from "./client";
 
-const BATCH_SIZE = 18;
-export const CLASSIFY_MAX_ITEMS = Number(process.env.CLASSIFY_MAX_ITEMS ?? 200);
+const BATCH_SIZE = 10;
+export const CLASSIFY_MAX_ITEMS = Number(process.env.CLASSIFY_MAX_ITEMS ?? 36);
 const MAX_CHARS_PER_ITEM = 500;
 
 function buildSystemPrompt(themes: Theme[]): string {
@@ -35,7 +44,7 @@ function buildBatchPrompt(batch: CollectedItem[]): string {
   return `Items:\n[${lines.join(",\n")}]`;
 }
 
-function validateBatch(parsed: unknown, batch: CollectedItem[], validCodes: Set<string>): ClassifiedTag[] {
+export function validateBatch(parsed: unknown, batch: CollectedItem[], validCodes: Set<string>): ClassifiedTag[] {
   if (typeof parsed !== "object" || parsed === null || !("results" in parsed)) {
     throw new Error("Missing 'results' array");
   }
@@ -72,7 +81,7 @@ function validateBatch(parsed: unknown, batch: CollectedItem[], validCodes: Set<
   return tags;
 }
 
-function pickWorkingSet(items: CollectedItem[], max: number): CollectedItem[] {
+export function pickWorkingSet(items: CollectedItem[], max: number): CollectedItem[] {
   if (items.length <= max) return items;
   // Stratified sample across sources, same rationale as theme discovery: don't
   // let whichever source returned the most raw items dominate what gets classified.
@@ -107,7 +116,7 @@ export async function classifyItems(items: CollectedItem[], themes: Theme[]): Pr
       ];
       try {
         return await callGroqJsonWithRetry(messages, (parsed) => validateBatch(parsed, batch, validCodes), {
-          maxTokens: 1500,
+          maxTokens: 2000,
         });
       } catch {
         // Both attempts failed — fall back to OTH for this batch rather than losing the run.

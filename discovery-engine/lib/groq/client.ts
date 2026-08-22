@@ -10,6 +10,8 @@
 // queue with a floor delay between requests so a busy discover run stays
 // under the RPM cap without needing external orchestration.
 
+import { log } from "@/lib/logger";
+
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 const MIN_DELAY_MS = 2100; // ~28 requests/min, safely under the 30 RPM cap
 
@@ -17,9 +19,15 @@ let queue: Promise<unknown> = Promise.resolve();
 
 function enqueue<T>(fn: () => Promise<T>): Promise<T> {
   const result = queue.then(async () => {
-    const value = await fn();
-    await new Promise((r) => setTimeout(r, MIN_DELAY_MS));
-    return value;
+    // The floor delay must apply whether fn() succeeds or throws — skipping
+    // it on failure (as a bare `await fn(); await delay();` would) lets one
+    // 429 cascade into a burst of immediately-following calls that all also
+    // get 429'd, since nothing paced them against the still-active rate limit.
+    try {
+      return await fn();
+    } finally {
+      await new Promise((r) => setTimeout(r, MIN_DELAY_MS));
+    }
   });
   // Swallow rejections in the queue chain itself so one failed call doesn't
   // wedge the queue for subsequent callers; each caller still sees its own error.
@@ -29,15 +37,19 @@ function enqueue<T>(fn: () => Promise<T>): Promise<T> {
 
 export type GroqMessage = { role: "system" | "user" | "assistant"; content: string };
 
+/** Thrown for a 429 specifically, so callers can skip the pointless "fix your JSON" retry. */
+export class GroqRateLimitError extends Error {}
+
 export async function callGroq(
   messages: GroqMessage[],
   opts: { maxTokens?: number; temperature?: number; jsonMode?: boolean } = {}
 ): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY is not configured");
-  const model = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+  const model = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 
   return enqueue(async () => {
+    const startedAt = Date.now();
     const res = await fetch(GROQ_URL, {
       method: "POST",
       headers: {
@@ -55,12 +67,28 @@ export async function callGroq(
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
+      log.error("groq.call_failed", {
+        status: res.status,
+        durationMs: Date.now() - startedAt,
+        body: body.slice(0, 300),
+        remainingTokens: res.headers.get("x-ratelimit-remaining-tokens"),
+        limitTokens: res.headers.get("x-ratelimit-limit-tokens"),
+        resetTokens: res.headers.get("x-ratelimit-reset-tokens"),
+      });
+      if (res.status === 429) throw new GroqRateLimitError(`Groq API error ${res.status}: ${body.slice(0, 500)}`);
       throw new Error(`Groq API error ${res.status}: ${body.slice(0, 500)}`);
     }
 
     const data = await res.json();
     const content = data.choices?.[0]?.message?.content;
     if (!content || !content.trim()) throw new Error("Groq returned an empty response");
+    log.info("groq.call_succeeded", {
+      model,
+      durationMs: Date.now() - startedAt,
+      usage: data.usage,
+      remainingTokens: res.headers.get("x-ratelimit-remaining-tokens"),
+      limitTokens: res.headers.get("x-ratelimit-limit-tokens"),
+    });
     return content as string;
   });
 }
@@ -93,6 +121,11 @@ export async function callGroqJsonWithRetry<T>(
   try {
     return await attempt(messages);
   } catch (err) {
+    // A 429 means the account's TPM budget is exhausted right now — asking the
+    // model to "fix your JSON" doesn't address that, and the retry attempt is
+    // itself another call that's virtually guaranteed to also 429, wasting
+    // both budget and wall-clock time. Let the caller's own fallback handle it.
+    if (err instanceof GroqRateLimitError) throw err;
     const correction: GroqMessage = {
       role: "user",
       content: `Your previous response was not valid JSON matching the required schema (error: ${

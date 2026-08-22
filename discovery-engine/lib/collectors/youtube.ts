@@ -3,6 +3,7 @@
 // commentThreads.list pulls top-level comments off each.
 
 import type { CollectedItem } from "@/lib/types";
+import { fetchWithTimeout, withRetry } from "@/lib/http";
 
 const MAX_VIDEOS = 8;
 const COMMENTS_PER_VIDEO = 50;
@@ -31,7 +32,7 @@ async function searchVideos(productName: string, apiKey: string): Promise<Search
   url.searchParams.set("relevanceLanguage", "en");
   url.searchParams.set("key", apiKey);
 
-  const res = await fetch(url.toString());
+  const res = await withRetry(() => fetchWithTimeout(url.toString()));
   if (!res.ok) throw new Error(`YouTube search.list failed: ${res.status}`);
   const data = await res.json();
   return data.items ?? [];
@@ -45,7 +46,7 @@ async function fetchComments(videoId: string, apiKey: string): Promise<CommentTh
   url.searchParams.set("order", "relevance");
   url.searchParams.set("key", apiKey);
 
-  const res = await fetch(url.toString());
+  const res = await withRetry(() => fetchWithTimeout(url.toString()));
   if (!res.ok) {
     // Comments can be disabled on a given video (403) — skip that video, don't fail the run.
     if (res.status === 403 || res.status === 404) return [];

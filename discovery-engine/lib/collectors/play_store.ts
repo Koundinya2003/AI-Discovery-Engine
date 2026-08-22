@@ -20,10 +20,24 @@
 
 import gplay from "google-play-scraper";
 import type { CollectedItem } from "@/lib/types";
+import { withRetry } from "@/lib/http";
 
 const COUNTRY = "in";
 const LANG = "en";
 const MAX_REVIEWS = 300; // keep per-run volume modest, per compliance notes
+const CALL_TIMEOUT_MS = 8000;
+
+/**
+ * google-play-scraper calls are plain promises with no built-in timeout —
+ * unlike raw fetch calls elsewhere, there's no AbortController to hook into,
+ * so a hung request is bounded with Promise.race instead.
+ */
+function withTimeout<T>(promise: Promise<T>, ms = CALL_TIMEOUT_MS): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`Play Store call timed out after ${ms}ms`)), ms)),
+  ]);
+}
 
 // Words that describe the app's category/type rather than identify the brand
 // (e.g. "Nykaa Fashion" -> the brand-identifying word is "Nykaa", not
@@ -33,7 +47,7 @@ const GENERIC_SUFFIX_WORDS = new Set([
   "lite", "pro", "plus", "go", "official", "get", "my",
 ]);
 
-function mostDistinctiveWord(productName: string): string {
+export function mostDistinctiveWord(productName: string): string {
   const words = productName
     .split(/\s+/)
     .map((w) => w.replace(/[^a-zA-Z0-9]/g, ""))
@@ -49,7 +63,7 @@ function mostDistinctiveWord(productName: string): string {
 
 async function resolveByExactPackage(pkg: string) {
   try {
-    const app = await gplay.app({ appId: pkg, lang: LANG, country: COUNTRY });
+    const app = await withTimeout(gplay.app({ appId: pkg, lang: LANG, country: COUNTRY }));
     return { appId: app.appId, title: app.title };
   } catch {
     return null;
@@ -69,7 +83,7 @@ export async function resolvePlayStoreApp(
   // full multi-word query, and prefer results whose title actually contains
   // the full product name (case-insensitive) over the library's own ranking.
   const term = mostDistinctiveWord(productName);
-  const results = await gplay.search({ term, num: 10, lang: LANG, country: COUNTRY });
+  const results = await withRetry(() => withTimeout(gplay.search({ term, num: 10, lang: LANG, country: COUNTRY })));
   if (!results.length) return null;
 
   const nameLower = productName.toLowerCase();
@@ -88,13 +102,17 @@ export async function collectPlayStore(
   const resolved = await resolvePlayStoreApp(productName, playPackage);
   if (!resolved) return { items: [] };
 
-  const { data } = await gplay.reviews({
-    appId: resolved.appId,
-    lang: LANG,
-    country: COUNTRY,
-    sort: 2, // gplay.sort.NEWEST — using the raw value; the package's own type declarations mistype this enum
-    num: MAX_REVIEWS,
-  });
+  const { data } = await withRetry(() =>
+    withTimeout(
+      gplay.reviews({
+        appId: resolved.appId,
+        lang: LANG,
+        country: COUNTRY,
+        sort: 2, // gplay.sort.NEWEST — using the raw value; the package's own type declarations mistype this enum
+        num: MAX_REVIEWS,
+      })
+    )
+  );
 
   const items: CollectedItem[] = data
     .filter((r) => r.text?.trim())

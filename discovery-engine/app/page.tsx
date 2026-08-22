@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { DiscoverResponse, SourceKind } from "@/lib/types";
 import Header from "@/components/Header";
 import SearchForm, { type SearchFormValues } from "@/components/SearchForm";
@@ -23,17 +23,29 @@ function sourceBreakdownLabel(stats: DiscoverResponse["stats"]): string {
 }
 
 export default function Home() {
-  const [result, setResult] = useState<DiscoverResponse | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const cached = sessionStorage.getItem(CACHE_KEY);
-      return cached ? (JSON.parse(cached) as DiscoverResponse) : null;
-    } catch {
-      return null; // ignore corrupt/unavailable session cache
-    }
-  });
+  // Starts null on both server and client so the first client render matches
+  // the server-rendered HTML exactly — reading sessionStorage in a lazy
+  // useState initializer instead would make the client's first render differ
+  // from the server's whenever a cached result exists, causing a hydration
+  // mismatch. Restoring the cache in an effect (client-only, post-hydration)
+  // avoids that.
+  const [result, setResult] = useState<DiscoverResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const cached = sessionStorage.getItem(CACHE_KEY);
+      // Restoring persisted state from a browser storage API on mount is
+      // exactly what an effect is for — the alternative (reading it during
+      // render, e.g. a lazy useState initializer) is the hydration-mismatch
+      // bug this effect exists to avoid in the first place.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (cached) setResult(JSON.parse(cached) as DiscoverResponse);
+    } catch {
+      // ignore corrupt/unavailable session cache
+    }
+  }, []);
 
   async function handleSubmit(values: SearchFormValues) {
     setLoading(true);
