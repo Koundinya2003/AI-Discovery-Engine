@@ -1,8 +1,23 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, type ComponentPropsWithoutRef, type FormEvent } from "react";
+import ReactMarkdown from "react-markdown";
 import type { AskResponse, DiscoverResponse } from "@/lib/types";
 import SourceTag from "./SourceTag";
+
+// Groq's answers routinely include markdown (**bold**, lists) — render it
+// instead of showing literal asterisks. Only the inline/basic elements an
+// answer paragraph would plausibly use are styled; anything else falls back
+// to react-markdown's defaults, which inherit the surrounding text color.
+const MARKDOWN_COMPONENTS = {
+  p: (props: ComponentPropsWithoutRef<"p">) => <p className="mb-2 last:mb-0" {...props} />,
+  strong: (props: ComponentPropsWithoutRef<"strong">) => <strong className="font-semibold text-de-text-primary" {...props} />,
+  ul: (props: ComponentPropsWithoutRef<"ul">) => <ul className="mb-2 list-disc space-y-1 pl-5 last:mb-0" {...props} />,
+  ol: (props: ComponentPropsWithoutRef<"ol">) => <ol className="mb-2 list-decimal space-y-1 pl-5 last:mb-0" {...props} />,
+  a: (props: ComponentPropsWithoutRef<"a">) => (
+    <a className="text-de-accent underline underline-offset-2" target="_blank" rel="noopener noreferrer" {...props} />
+  ),
+};
 
 type ChatEntry = { question: string; answer: string; usedThemeTitles: string[]; sourceCount: number };
 
@@ -78,7 +93,9 @@ export default function AskBox({ corpus, themes }: { corpus: DiscoverResponse["c
           {history.map((entry, i) => (
             <li key={i} className="rounded-lg border border-de-border/60 bg-black/20 p-4">
               <p className="text-sm font-medium text-de-text-primary">{entry.question}</p>
-              <p className="mt-2 text-sm leading-relaxed text-de-text-secondary whitespace-pre-wrap">{entry.answer}</p>
+              <div className="mt-2 text-sm leading-relaxed text-de-text-secondary">
+                <ReactMarkdown components={MARKDOWN_COMPONENTS}>{entry.answer}</ReactMarkdown>
+              </div>
               {entry.usedThemeTitles.length > 0 && (
                 <div className="mt-3 flex flex-wrap items-center gap-1.5">
                   <span className="text-[10px] uppercase tracking-wide text-de-text-muted">

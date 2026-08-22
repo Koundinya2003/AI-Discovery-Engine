@@ -1,12 +1,26 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 
 export type SearchFormValues = {
   productName: string;
   appStoreId: string;
   playPackage: string;
 };
+
+// A full discover run has no server-pushed progress events (it's a single
+// synchronous request), so this is a client-side illustrative progression
+// through the pipeline's actual stages, timed to roughly match how long each
+// one takes — not a literal signal from the backend. It exists purely so the
+// ~15-20s wait doesn't look frozen on a disabled button.
+const DISCOVERY_STAGES = [
+  "Searching Play Store, App Store, YouTube, and forums…",
+  "Collecting reviews and comments…",
+  "Discovering themes from what users said…",
+  "Classifying reviews against those themes…",
+  "Almost done…",
+];
+const STAGE_INTERVAL_MS = 3500;
 
 export default function SearchForm({
   onSubmit,
@@ -19,10 +33,20 @@ export default function SearchForm({
   const [appStoreId, setAppStoreId] = useState("");
   const [playPackage, setPlayPackage] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [stageIndex, setStageIndex] = useState(0);
+
+  useEffect(() => {
+    if (!loading) return;
+    const id = setInterval(() => {
+      setStageIndex((i) => Math.min(i + 1, DISCOVERY_STAGES.length - 1));
+    }, STAGE_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [loading]);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!productName.trim() || loading) return;
+    setStageIndex(0); // a plain event handler, not an effect — safe to reset here directly
     onSubmit({ productName: productName.trim(), appStoreId: appStoreId.trim(), playPackage: playPackage.trim() });
   }
 
@@ -48,6 +72,13 @@ export default function SearchForm({
           {loading ? "Discovering…" : "Discover themes"}
         </button>
       </div>
+
+      {loading && (
+        <div className="mt-3 flex items-center gap-2 text-xs text-de-text-muted" role="status" aria-live="polite">
+          <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-de-border border-t-de-accent" />
+          {DISCOVERY_STAGES[stageIndex]}
+        </div>
+      )}
 
       <button
         type="button"

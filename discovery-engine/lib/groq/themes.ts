@@ -128,7 +128,18 @@ function nonCatchallCount(themes: Theme[]): number {
   return themes.filter((t) => t.code !== "OTH").length;
 }
 
-export async function discoverThemes(productName: string, items: CollectedItem[]): Promise<Theme[]> {
+export type DiscoverThemesResult = { themes: Theme[]; sample: CollectedItem[] };
+
+/**
+ * Returns both the discovered themes AND the exact sample they were derived
+ * from. Callers should classify that same sample (or a subset of it) rather
+ * than an independently-drawn slice of the full item set — pass 1 only ever
+ * sees `sample`, so themes it proposes are only guaranteed to have evidence
+ * within `sample`, not across the full (often much larger) collected set.
+ * Classifying a disjoint slice against those themes reliably over-produces
+ * OTH for items that simply never informed which themes exist.
+ */
+export async function discoverThemes(productName: string, items: CollectedItem[]): Promise<DiscoverThemesResult> {
   const sample = diverseSample(items, SAMPLE_SIZE);
 
   const messages: GroqMessage[] = [
@@ -137,7 +148,7 @@ export async function discoverThemes(productName: string, items: CollectedItem[]
   ];
 
   const first = await callGroqJsonWithRetry(messages, validateThemes, { maxTokens: DISCOVERY_MAX_TOKENS });
-  if (nonCatchallCount(first) >= MIN_NON_CATCHALL_THEMES) return first;
+  if (nonCatchallCount(first) >= MIN_NON_CATCHALL_THEMES) return { themes: first, sample };
 
   // The model under-delivered on the "8 to 14 themes" instruction — push back
   // once with an explicit count and let it look again, rather than silently
@@ -157,9 +168,9 @@ export async function discoverThemes(productName: string, items: CollectedItem[]
 
   try {
     const retry = await callGroqJsonWithRetry(retryMessages, validateThemes, { maxTokens: DISCOVERY_MAX_TOKENS, temperature: 0.5 });
-    return nonCatchallCount(retry) > nonCatchallCount(first) ? retry : first;
+    return { themes: nonCatchallCount(retry) > nonCatchallCount(first) ? retry : first, sample };
   } catch (err) {
     log.error("themes.low_yield_retry_failed", { productName, error: String(err) });
-    return first;
+    return { themes: first, sample };
   }
 }

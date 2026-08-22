@@ -17,6 +17,7 @@
 import * as cheerio from "cheerio";
 import type { CollectedItem, SourceStat } from "@/lib/types";
 import { fetchWithTimeout } from "@/lib/http";
+import { log } from "@/lib/logger";
 
 const DEFAULT_DOMAINS = ["onlytechforum.in", "pissedconsumer.com", "quora.com"];
 const MAX_ITEMS = Number(process.env.FORUM_MAX_ITEMS ?? 120);
@@ -100,21 +101,35 @@ function domainLabel(domain: string): string {
   return base.replace(/forum$/i, "_forum").toLowerCase();
 }
 
-async function fetchMainText(url: string): Promise<string> {
+type FetchOutcome = { text: string; status?: number; reason?: string };
+
+async function fetchMainText(url: string): Promise<FetchOutcome> {
   try {
+    // A bare custom User-Agent with no other browser-typical headers reads as
+    // an obvious bot to many sites (Quora in particular serves a near-empty
+    // login-wall shell to anything that doesn't look like a real browser
+    // request) — Accept/Accept-Language make this look like a normal page
+    // load instead of a script poking the URL directly.
     const res = await fetchWithTimeout(
       url,
-      { headers: { "User-Agent": "Mozilla/5.0 (compatible; DiscoveryEngineBot/1.0)" } },
+      {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
+        },
+      },
       FETCH_TIMEOUT_MS
     );
-    if (!res.ok) return "";
+    if (!res.ok) return { text: "", status: res.status, reason: `http_${res.status}` };
     const html = await res.text();
     const $ = cheerio.load(html);
     $("script, style, nav, footer, header, noscript").remove();
     const text = $("body").text().replace(/\s+/g, " ").trim();
-    return text.slice(0, 4000); // cap per-page text to keep the item set token-friendly
-  } catch {
-    return "";
+    return { text: text.slice(0, 4000), status: res.status }; // cap per-page text to keep the item set token-friendly
+  } catch (err) {
+    return { text: "", reason: err instanceof Error ? err.message : String(err) };
   }
 }
 
@@ -131,28 +146,48 @@ export async function collectForums(
     const label = domainLabel(domain);
     try {
       const hits = await searchSite(query, domain);
+      log.info("forums.search_hits", { productName, domain, hitCount: hits.length });
+
+      if (hits.length === 0) {
+        // Distinguish "search API returned nothing" from "pages fetched but
+        // had no usable text" — both used to collapse into an unlabeled 0,
+        // which made this exact symptom (forums always at 0) undebuggable
+        // from logs alone.
+        perDomainStats.push({ source: "forum", label, count: 0, error: "search returned 0 results" });
+        continue;
+      }
+
       let domainCount = 0;
+      const pages = await Promise.allSettled(hits.map(async (hit) => ({ hit, outcome: await fetchMainText(hit.url) })));
 
-      const pages = await Promise.allSettled(
-        hits.map(async (hit) => ({ hit, text: await fetchMainText(hit.url) }))
-      );
-
+      let tooShort = 0;
+      let fetchFailed = 0;
       for (const p of pages) {
         if (items.length >= MAX_ITEMS) break;
         if (p.status !== "fulfilled") continue;
-        const { hit, text } = p.value;
-        if (!text || text.length < 100) continue;
+        const { hit, outcome } = p.value;
+        if (!outcome.text || outcome.text.length < 100) {
+          if (outcome.reason) fetchFailed++;
+          else tooShort++;
+          log.info("forums.page_skipped", { domain, url: hit.url, status: outcome.status, reason: outcome.reason, textLength: outcome.text.length });
+          continue;
+        }
         items.push({
           id: `forum_${label}_${Buffer.from(hit.url).toString("base64url").slice(0, 24)}`,
           source: "forum",
           sourceLabel: label,
-          text,
+          text: outcome.text,
           url: hit.url,
         });
         domainCount++;
       }
 
-      perDomainStats.push({ source: "forum", label, count: domainCount });
+      perDomainStats.push({
+        source: "forum",
+        label,
+        count: domainCount,
+        error: domainCount === 0 ? `${hits.length} hits, ${fetchFailed} fetch failures, ${tooShort} too short/blocked` : undefined,
+      });
     } catch (err) {
       perDomainStats.push({
         source: "forum",

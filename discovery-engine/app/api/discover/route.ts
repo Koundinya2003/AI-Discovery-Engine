@@ -8,6 +8,7 @@ import { discoverThemes } from "@/lib/groq/themes";
 import { classifyItems } from "@/lib/groq/classify";
 import { checkRateLimit, buildDiscoverCacheKey, getCachedDiscoverResult, setCachedDiscoverResult } from "@/lib/redis";
 import { log } from "@/lib/logger";
+import { isLikelySpam } from "@/lib/spam";
 
 // Vercel Hobby allows up to 60s for a Node.js serverless function with this
 // declared. A full run (4 parallel collectors + 1 theme-discovery Groq call +
@@ -107,6 +108,15 @@ export async function POST(req: NextRequest) {
   if (forumsResult.status === "fulfilled") {
     items.push(...forumsResult.value.items);
     stats.push({ source: "forum", label: "Forums", count: forumsResult.value.items.length });
+    if (forumsResult.value.items.length === 0) {
+      // perDomainStats carries *why* each domain came up empty (search found
+      // nothing vs. pages fetched but were too short/blocked) — surface it
+      // instead of just the flat "Forums returned zero items" below, which
+      // gave no way to tell those cases apart from the UI or Vercel logs.
+      for (const domainStat of forumsResult.value.perDomainStats) {
+        if (domainStat.error) warnings.push(`Forums (${domainStat.label}): ${domainStat.error}`);
+      }
+    }
   } else {
     stats.push({ source: "forum", label: "Forums", count: 0, error: String(forumsResult.reason) });
     warnings.push(`Forum collection failed: ${forumsResult.reason}`);
@@ -139,9 +149,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Drop obvious promo/spam (most common in YouTube comments) before it can
+  // seed a theme or get surfaced as a representative quote. Stats above
+  // already reflect the raw scraped count, so this only affects what feeds
+  // the LLM passes below. If somehow everything was flagged, fall back to
+  // the unfiltered set rather than erroring on an empty pipeline.
+  const spamFiltered = items.filter((item) => !isLikelySpam(item.text));
+  const cleanItems = spamFiltered.length > 0 ? spamFiltered : items;
+  if (cleanItems.length < items.length) {
+    log.info("discover.spam_filtered", { productName, removed: items.length - cleanItems.length });
+  }
+
   let themes;
+  let sample: CollectedItem[];
   try {
-    themes = await discoverThemes(productName, items);
+    ({ themes, sample } = await discoverThemes(productName, cleanItems));
   } catch (err) {
     log.error("discover.theme_discovery_failed", { productName, error: String(err) });
     return NextResponse.json(
@@ -150,7 +172,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { tags, workingSet } = await classifyItems(items, themes);
+  // Classify from the same sample themes were discovered from, not an
+  // independently-drawn slice of the full item set — otherwise pass 1 can
+  // discover themes from reviews that pass 2 never actually sees again,
+  // which is what was driving most items into the OTH catch-all.
+  const { tags, workingSet } = await classifyItems(sample, themes);
   const tagByItemId = new Map(tags.map((t) => [t.itemId, t]));
 
   const corpus: DiscoverResponse["corpus"] = workingSet.map((item) => {
