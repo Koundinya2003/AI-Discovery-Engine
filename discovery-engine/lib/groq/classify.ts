@@ -28,7 +28,9 @@ function buildSystemPrompt(themes: Theme[]): string {
 
 ${themeList}
 
-For each input item, return its id, the single best-fitting theme code, a sentiment ("positive", "negative", "neutral", or "mixed"), and a confidence from 0 to 1. If nothing fits, use "OTH".
+For each input item, return its id, the single best-fitting theme code, a sentiment ("positive", "negative", "neutral", or "mixed"), and a confidence from 0 to 1.
+
+Pick a specific (non-OTH) theme whenever the item has ANY clear connection to one, even if the match isn't perfect — a specific theme with a related complaint or praise is a better answer than defaulting to OTH. Reserve "OTH" strictly for items with no specific thematic signal at all: pure generic praise ("great app", "love it") with no detail, one-word/low-content noise, or content genuinely unrelated to any listed theme. Do not use OTH just because an item touches a theme only partially.
 
 Return ONLY a JSON object, no markdown fences, no commentary, matching exactly:
 { "results": [ { "id": "...", "themeCode": "...", "sentiment": "...", "confidence": 0.0 } ] }

@@ -51,7 +51,8 @@ describe("discoverThemes", () => {
     const result = await discoverThemes("Test Product", items);
 
     expect(callGroqJsonWithRetry).toHaveBeenCalledTimes(1);
-    expect(result).toEqual(manyThemes);
+    expect(result.themes).toEqual(manyThemes);
+    expect(result.sample.length).toBeGreaterThan(0);
   });
 
   it("retries once with a stronger prompt when too few themes came back, keeping the better result", async () => {
@@ -60,7 +61,7 @@ describe("discoverThemes", () => {
     const result = await discoverThemes("Test Product", items);
 
     expect(callGroqJsonWithRetry).toHaveBeenCalledTimes(2);
-    expect(result).toEqual(manyThemes);
+    expect(result.themes).toEqual(manyThemes);
   });
 
   it("falls back to the first-pass result if the retry call itself fails", async () => {
@@ -68,6 +69,15 @@ describe("discoverThemes", () => {
 
     const result = await discoverThemes("Test Product", items);
 
-    expect(result).toEqual(fewThemes);
+    expect(result.themes).toEqual(fewThemes);
+  });
+
+  it("returns the same sample the themes were derived from", async () => {
+    callGroqJsonWithRetry.mockResolvedValueOnce(manyThemes);
+
+    const result = await discoverThemes("Test Product", items);
+
+    // With only 5 substantive items and SAMPLE_SIZE=80, the sample is every item.
+    expect(result.sample.map((i) => i.id).sort()).toEqual(items.map((i) => i.id).sort());
   });
 });

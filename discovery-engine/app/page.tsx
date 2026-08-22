@@ -50,6 +50,17 @@ export default function Home() {
   async function handleSubmit(values: SearchFormValues) {
     setLoading(true);
     setError(null);
+    // Clear any previous product's results immediately — otherwise a failed
+    // or zero-item search for a *new* query left the *old* query's themes,
+    // stats, resolved-match banner, and Q&A history fully rendered on screen
+    // with no indication they belonged to a different search.
+    setResult(null);
+    try {
+      sessionStorage.removeItem(CACHE_KEY);
+    } catch {
+      // storage unavailable — nothing to clean up
+    }
+
     try {
       const res = await fetch("/api/discover", {
         method: "POST",
@@ -77,13 +88,9 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
+    <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
       {result ? (
-        <Header
-          productName={result.productName}
-          totalItems={result.totals.scraped}
-          sourceBreakdown={sourceBreakdownLabel(result.stats)}
-        />
+        <Header productName={result.productName} sourceBreakdown={sourceBreakdownLabel(result.stats)} />
       ) : (
         <div>
           <p className="text-xs font-medium uppercase tracking-widest text-de-text-muted">Growth Insights</p>
@@ -139,7 +146,7 @@ export default function Home() {
             <h2 className="text-sm font-semibold uppercase tracking-wide text-de-text-muted">
               Discovered themes ({result.themes.length})
             </h2>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {result.themes.map((theme) => (
                 <ThemeCard key={theme.code} theme={theme} />
               ))}

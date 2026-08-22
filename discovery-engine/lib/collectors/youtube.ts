@@ -4,6 +4,7 @@
 
 import type { CollectedItem } from "@/lib/types";
 import { fetchWithTimeout, withRetry } from "@/lib/http";
+import { isLikelySpam } from "@/lib/spam";
 
 const MAX_VIDEOS = 8;
 const COMMENTS_PER_VIDEO = 50;
@@ -73,6 +74,7 @@ export async function collectYouTube(productName: string): Promise<{ items: Coll
     for (const c of comments) {
       const snippet = c.snippet.topLevelComment.snippet;
       if (!snippet.textDisplay?.trim()) continue;
+      if (isLikelySpam(snippet.textDisplay)) continue; // ad/promo comments are common here and carry no product signal
       items.push({
         id: `youtube_${c.id}`,
         source: "youtube",
