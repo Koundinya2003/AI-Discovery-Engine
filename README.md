@@ -32,7 +32,7 @@ Open [http://localhost:3000](http://localhost:3000), enter a product name (e.g. 
 
 ## Tech stack
 
-Next.js 16 (App Router) · TypeScript · Tailwind CSS · Groq (`llama-3.3-70b-versatile`, pinned) · deployed on Vercel
+Next.js 16 (App Router) · TypeScript · Tailwind CSS · Groq (`openai/gpt-oss-120b`, pinned) · Upstash Redis (rate limiting/caching) · Vitest · deployed on Vercel
 
 ## 👨‍💻 Author
 

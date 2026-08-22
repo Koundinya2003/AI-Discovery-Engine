@@ -75,6 +75,8 @@ export type DiscoverResponse = {
   /** Full classified corpus, sent back to the client so the Ask box can run retrieval without re-collecting. */
   corpus: Array<CollectedItem & { themeCode: string; sentiment: ClassifiedTag["sentiment"] }>;
   warnings: string[];
+  /** True when this response was served from the Redis cache instead of a fresh collect+classify run. */
+  cached?: boolean;
 };
 
 export type AskRequest = {
