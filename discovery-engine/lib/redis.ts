@@ -7,7 +7,7 @@
 
 import { Redis } from "@upstash/redis";
 import { Ratelimit } from "@upstash/ratelimit";
-import type { DiscoverResponse } from "@/lib/types";
+import type { RunResult } from "@/lib/types";
 import { log } from "@/lib/logger";
 
 const RATE_LIMIT_WINDOW = "10 m";
@@ -53,22 +53,31 @@ export async function checkRateLimit(kind: "discover" | "ask", identifier: strin
   }
 }
 
-export function buildDiscoverCacheKey(productName: string, appStoreId?: string, playPackage?: string): string {
+export function buildDiscoverCacheKey(
+  productName: string,
+  comparisonPlatforms: string[],
+  appStoreId?: string,
+  playPackage?: string
+): string {
   const normalized = productName.trim().toLowerCase();
-  return `discover:${normalized}:${appStoreId ?? ""}:${playPackage ?? ""}`;
+  // Comparison platforms are part of the identity of a run: the same primary
+  // platform analysed with and without Myntra/AJIO produces different shares
+  // and a different opportunity ranking, so they must not share a cache entry.
+  const comparisons = [...comparisonPlatforms].map((p) => p.trim().toLowerCase()).sort().join("+");
+  return `discover:v2:${normalized}:${comparisons}:${appStoreId ?? ""}:${playPackage ?? ""}`;
 }
 
-export async function getCachedDiscoverResult(key: string): Promise<DiscoverResponse | null> {
+export async function getCachedDiscoverResult(key: string): Promise<RunResult | null> {
   if (!redis) return null;
   try {
-    return await redis.get<DiscoverResponse>(key);
+    return await redis.get<RunResult>(key);
   } catch (err) {
     log.error("redis.cache_get_failed", { key, error: String(err) });
     return null;
   }
 }
 
-export async function setCachedDiscoverResult(key: string, value: DiscoverResponse): Promise<void> {
+export async function setCachedDiscoverResult(key: string, value: RunResult): Promise<void> {
   if (!redis) return;
   try {
     await redis.set(key, value, { ex: CACHE_TTL_SECONDS });

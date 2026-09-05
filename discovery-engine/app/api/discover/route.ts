@@ -1,31 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { CollectedItem, DiscoverRequest, DiscoverResponse, SourceKind, SourceStat, ThemeResult } from "@/lib/types";
-import { collectAppStore } from "@/lib/collectors/app_store";
-import { collectPlayStore } from "@/lib/collectors/play_store";
-import { collectYouTube } from "@/lib/collectors/youtube";
-import { collectForums } from "@/lib/collectors/forums";
-import { discoverThemes } from "@/lib/groq/themes";
-import { classifyItems } from "@/lib/groq/classify";
+import type { DiscoverRequest, ProgressEvent, RunResult } from "@/lib/types";
+import { runPipeline } from "@/lib/pipeline";
 import { checkRateLimit, buildDiscoverCacheKey, getCachedDiscoverResult, setCachedDiscoverResult } from "@/lib/redis";
+import { isPersistenceConfigured, newRunId, saveRun } from "@/lib/runs";
+import { DEFAULT_COMPARISON_PLATFORMS } from "@/lib/platforms";
+import { classifyError, reasonCopy } from "@/lib/errors";
 import { log } from "@/lib/logger";
-import { isLikelySpam } from "@/lib/spam";
 
-// Vercel Hobby allows up to 60s for a Node.js serverless function with this
-// declared. A full run (4 parallel collectors + 1 theme-discovery Groq call +
-// ~10 batched classification Groq calls, each spaced ~2.1s apart to respect
-// Groq's free-tier 30 req/min limit) is tuned to fit comfortably inside that.
+// Vercel Hobby allows up to 60s for a Node.js function with this declared.
 export const maxDuration = 60;
 
-const SOURCES: SourceKind[] = ["app_store", "play_store", "youtube", "forum"];
-const MAX_PRODUCT_NAME_LENGTH = 200;
+const MAX_PRODUCT_NAME_LENGTH = 120;
+const MAX_COMPARISON_PLATFORMS = 4;
 
 function clientIdentifier(req: NextRequest): string {
   return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
 }
 
-export async function POST(req: NextRequest) {
-  const startedAt = Date.now();
+function ndjson(event: ProgressEvent): Uint8Array {
+  return new TextEncoder().encode(`${JSON.stringify(event)}\n`);
+}
 
+/**
+ * Responds with a stream of NDJSON progress events, ending in a single
+ * `{"type":"result"}` line. Progress is real: each event carries counts the
+ * pipeline has actually reached, not a timer walking through captions.
+ *
+ * Errors before the stream opens are ordinary JSON responses with a status
+ * code; errors after it opens arrive as a final `{"type":"error"}` line,
+ * because the status line has already been sent by then.
+ */
+export async function POST(req: NextRequest) {
   let body: DiscoverRequest;
   try {
     body = await req.json();
@@ -35,232 +40,93 @@ export async function POST(req: NextRequest) {
 
   const productName = body.productName?.trim();
   if (!productName) {
-    return NextResponse.json({ error: "productName is required" }, { status: 400 });
+    return NextResponse.json({ error: "Enter a platform name to analyse." }, { status: 400 });
   }
   if (productName.length > MAX_PRODUCT_NAME_LENGTH) {
-    return NextResponse.json({ error: `productName must be ${MAX_PRODUCT_NAME_LENGTH} characters or fewer` }, { status: 400 });
+    return NextResponse.json(
+      { error: `Platform name must be ${MAX_PRODUCT_NAME_LENGTH} characters or fewer.` },
+      { status: 400 }
+    );
   }
+
+  const comparisonPlatforms = (
+    Array.isArray(body.comparisonPlatforms) ? body.comparisonPlatforms : DEFAULT_COMPARISON_PLATFORMS
+  )
+    .filter((p): p is string => typeof p === "string" && p.trim().length > 0)
+    .map((p) => p.trim().slice(0, MAX_PRODUCT_NAME_LENGTH))
+    .slice(0, MAX_COMPARISON_PLATFORMS);
 
   const identifier = clientIdentifier(req);
   const rateLimit = await checkRateLimit("discover", identifier);
   if (rateLimit.limited) {
     log.info("discover.rate_limited", { identifier, retryAfterSeconds: rateLimit.retryAfterSeconds });
     return NextResponse.json(
-      { error: "Rate limit exceeded. Try again shortly." },
+      {
+        error: `You've run several analyses in a short window. Try again in about ${Math.ceil(
+          (rateLimit.retryAfterSeconds ?? 60) / 60
+        )} minute(s).`,
+        retryAfterSeconds: rateLimit.retryAfterSeconds ?? 60,
+      },
       { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds ?? 60) } }
     );
   }
 
-  const cacheKey = buildDiscoverCacheKey(productName, body.appStoreId, body.playPackage);
+  const cacheKey = buildDiscoverCacheKey(productName, comparisonPlatforms, body.appStoreId, body.playPackage);
   const cached = await getCachedDiscoverResult(cacheKey);
-  if (cached) {
-    log.info("discover.cache_hit", { productName, cacheKey });
-    return NextResponse.json({ ...cached, cached: true });
-  }
 
-  log.info("discover.start", { productName, identifier });
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const emit = (event: ProgressEvent) => {
+        try {
+          controller.enqueue(ndjson(event));
+        } catch {
+          // The client hung up mid-run; the pipeline still finishes and caches.
+        }
+      };
 
-  const youtubeConfigured = Boolean(process.env.YOUTUBE_API_KEY);
-  const forumConfigured = Boolean(process.env.SEARCH_PROVIDER || process.env.GOOGLE_CSE_API_KEY);
+      try {
+        if (cached) {
+          log.info("discover.cache_hit", { productName, cacheKey });
+          emit({ type: "stage", stage: "cache", label: "Returning a recent run for this query" });
+          emit({ type: "result", result: { ...cached, cached: true } });
+          controller.close();
+          return;
+        }
 
-  const [appStoreResult, playStoreResult, youtubeResult, forumsResult] = await Promise.allSettled([
-    collectAppStore(productName, body.appStoreId),
-    collectPlayStore(productName, body.playPackage),
-    youtubeConfigured ? collectYouTube(productName) : Promise.resolve({ items: [] as CollectedItem[] }),
-    forumConfigured
-      ? collectForums(productName)
-      : Promise.resolve({ items: [] as CollectedItem[], perDomainStats: [] as SourceStat[] }),
-  ]);
+        const runId = newRunId();
+        log.info("discover.start", { runId, productName, comparisonPlatforms, identifier });
 
-  const items: CollectedItem[] = [];
-  const stats: SourceStat[] = [];
-  const warnings: string[] = [];
+        const result: RunResult = await runPipeline(
+          { productName, comparisonPlatforms, appStoreId: body.appStoreId, playPackage: body.playPackage, runId },
+          emit
+        );
 
-  let resolvedAppStoreTitle: string | undefined;
-  let resolvedPlayStoreTitle: string | undefined;
+        if (isPersistenceConfigured()) {
+          emit({ type: "stage", stage: "save", label: "Saving this run" });
+          result.persisted = await saveRun(result);
+        }
 
-  if (appStoreResult.status === "fulfilled") {
-    items.push(...appStoreResult.value.items);
-    resolvedAppStoreTitle = appStoreResult.value.resolvedTitle;
-    stats.push({ source: "app_store", label: "App Store", count: appStoreResult.value.items.length });
-  } else {
-    stats.push({ source: "app_store", label: "App Store", count: 0, error: String(appStoreResult.reason) });
-    warnings.push(`App Store collection failed: ${appStoreResult.reason}`);
-  }
-
-  if (playStoreResult.status === "fulfilled") {
-    items.push(...playStoreResult.value.items);
-    resolvedPlayStoreTitle = playStoreResult.value.resolvedTitle;
-    stats.push({ source: "play_store", label: "Play Store", count: playStoreResult.value.items.length });
-  } else {
-    stats.push({ source: "play_store", label: "Play Store", count: 0, error: String(playStoreResult.reason) });
-    warnings.push(`Play Store collection failed: ${playStoreResult.reason}`);
-  }
-
-  if (youtubeResult.status === "fulfilled") {
-    items.push(...youtubeResult.value.items);
-    stats.push({ source: "youtube", label: "YouTube", count: youtubeResult.value.items.length });
-  } else {
-    stats.push({ source: "youtube", label: "YouTube", count: 0, error: String(youtubeResult.reason) });
-    warnings.push(`YouTube collection failed: ${youtubeResult.reason}`);
-  }
-
-  if (forumsResult.status === "fulfilled") {
-    items.push(...forumsResult.value.items);
-    stats.push({ source: "forum", label: "Forums", count: forumsResult.value.items.length });
-    if (forumsResult.value.items.length === 0) {
-      // perDomainStats carries *why* each domain came up empty (search found
-      // nothing vs. pages fetched but were too short/blocked) — surface it
-      // instead of just the flat "Forums returned zero items" below, which
-      // gave no way to tell those cases apart from the UI or Vercel logs.
-      for (const domainStat of forumsResult.value.perDomainStats) {
-        if (domainStat.error) warnings.push(`Forums (${domainStat.label}): ${domainStat.error}`);
+        await setCachedDiscoverResult(cacheKey, result);
+        emit({ type: "result", result });
+      } catch (err) {
+        const reason = classifyError(err);
+        log.error("discover.failed", { productName, reason, error: String(err) });
+        emit({
+          type: "error",
+          message: `${reasonCopy(reason).headline}: the analysis could not be completed. ${reasonCopy(reason).detail}`,
+        });
+      } finally {
+        controller.close();
       }
-    }
-  } else {
-    stats.push({ source: "forum", label: "Forums", count: 0, error: String(forumsResult.reason) });
-    warnings.push(`Forum collection failed: ${forumsResult.reason}`);
-  }
-
-  const NOT_CONFIGURED: Partial<Record<SourceKind, string>> = {
-    youtube: youtubeConfigured ? undefined : "YOUTUBE_API_KEY not configured",
-    forum: forumConfigured ? undefined : "SEARCH_PROVIDER/GOOGLE_CSE_API_KEY not configured",
-  };
-
-  for (const s of SOURCES) {
-    const stat = stats.find((x) => x.source === s);
-    if (!stat || stat.count > 0 || stat.error) continue;
-    const skipReason = NOT_CONFIGURED[s];
-    warnings.push(skipReason ? `${stat.label} skipped: ${skipReason}.` : `${stat.label} returned zero items.`);
-  }
-
-  log.info("discover.collected", {
-    productName,
-    itemsScraped: items.length,
-    stats: stats.map((s) => ({ source: s.source, count: s.count, error: s.error })),
-    durationMs: Date.now() - startedAt,
+    },
   });
 
-  if (items.length === 0) {
-    log.error("discover.no_items", { productName, warnings });
-    return NextResponse.json(
-      { error: "No items were collected from any source. See warnings for details.", warnings },
-      { status: 502 }
-    );
-  }
-
-  // Drop obvious promo/spam (most common in YouTube comments) before it can
-  // seed a theme or get surfaced as a representative quote. Stats above
-  // already reflect the raw scraped count, so this only affects what feeds
-  // the LLM passes below. If somehow everything was flagged, fall back to
-  // the unfiltered set rather than erroring on an empty pipeline.
-  const spamFiltered = items.filter((item) => !isLikelySpam(item.text));
-  const cleanItems = spamFiltered.length > 0 ? spamFiltered : items;
-  if (cleanItems.length < items.length) {
-    log.info("discover.spam_filtered", { productName, removed: items.length - cleanItems.length });
-  }
-
-  let themes;
-  let sample: CollectedItem[];
-  try {
-    ({ themes, sample } = await discoverThemes(productName, cleanItems));
-  } catch (err) {
-    log.error("discover.theme_discovery_failed", { productName, error: String(err) });
-    return NextResponse.json(
-      { error: `Theme discovery failed: ${err instanceof Error ? err.message : String(err)}` },
-      { status: 502 }
-    );
-  }
-
-  // Classify from the same sample themes were discovered from, not an
-  // independently-drawn slice of the full item set — otherwise pass 1 can
-  // discover themes from reviews that pass 2 never actually sees again,
-  // which is what was driving most items into the OTH catch-all.
-  const { tags, workingSet } = await classifyItems(sample, themes);
-  const tagByItemId = new Map(tags.map((t) => [t.itemId, t]));
-
-  const corpus: DiscoverResponse["corpus"] = workingSet.map((item) => {
-    const tag = tagByItemId.get(item.id);
-    return { ...item, themeCode: tag?.themeCode ?? "OTH", sentiment: tag?.sentiment ?? "neutral" };
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-store, no-transform",
+      // Disables proxy buffering so progress lines arrive as they're written.
+      "X-Accel-Buffering": "no",
+    },
   });
-
-  const themeResults = aggregateThemes(themes, corpus);
-
-  const response: DiscoverResponse = {
-    productName,
-    stats,
-    totals: { scraped: items.length, classified: corpus.length },
-    resolvedAppStoreTitle,
-    resolvedPlayStoreTitle,
-    themes: themeResults,
-    corpus,
-    warnings,
-  };
-
-  await setCachedDiscoverResult(cacheKey, response);
-
-  log.info("discover.complete", {
-    productName,
-    itemsScraped: items.length,
-    itemsClassified: corpus.length,
-    themeCount: themeResults.length,
-    durationMs: Date.now() - startedAt,
-  });
-
-  return NextResponse.json(response);
-}
-
-function aggregateThemes(
-  themes: { code: string; title: string; definition: string }[],
-  corpus: DiscoverResponse["corpus"]
-): ThemeResult[] {
-  const byTheme = new Map<string, DiscoverResponse["corpus"]>();
-  for (const item of corpus) {
-    const arr = byTheme.get(item.themeCode) ?? [];
-    arr.push(item);
-    byTheme.set(item.themeCode, arr);
-  }
-
-  const results: ThemeResult[] = themes.map((theme) => {
-    const themeItems = byTheme.get(theme.code) ?? [];
-    return {
-      code: theme.code,
-      title: theme.title,
-      definition: theme.definition,
-      count: themeItems.length,
-      relativeFrequency: 0, // filled in below
-      quotes: pickDiverseQuotes(themeItems, 3),
-    };
-  });
-
-  const maxCount = Math.max(1, ...results.map((r) => r.count));
-  for (const r of results) r.relativeFrequency = r.count / maxCount;
-
-  return results.filter((r) => r.count > 0).sort((a, b) => b.count - a.count);
-}
-
-function pickDiverseQuotes(items: DiscoverResponse["corpus"], max: number): ThemeResult["quotes"] {
-  const bySource = new Map<string, DiscoverResponse["corpus"]>();
-  for (const item of items) {
-    const arr = bySource.get(item.sourceLabel) ?? [];
-    arr.push(item);
-    bySource.set(item.sourceLabel, arr);
-  }
-
-  const quotes: ThemeResult["quotes"] = [];
-  const sourceLabels = [...bySource.keys()];
-  let round = 0;
-  while (quotes.length < max && sourceLabels.some((s) => (bySource.get(s)?.length ?? 0) > round)) {
-    for (const label of sourceLabels) {
-      if (quotes.length >= max) break;
-      const arr = bySource.get(label)!;
-      const candidate = arr[round];
-      if (candidate) {
-        quotes.push({ text: candidate.text.slice(0, 400), source: candidate.source, sourceLabel: candidate.sourceLabel, url: candidate.url });
-      }
-    }
-    round++;
-  }
-
-  return quotes;
 }
