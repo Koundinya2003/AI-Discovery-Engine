@@ -1,26 +1,16 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
+import { DEFAULT_COMPARISON_PLATFORMS } from "@/lib/platforms";
 
 export type SearchFormValues = {
   productName: string;
+  comparisonPlatforms: string[];
   appStoreId: string;
   playPackage: string;
 };
 
-// A full discover run has no server-pushed progress events (it's a single
-// synchronous request), so this is a client-side illustrative progression
-// through the pipeline's actual stages, timed to roughly match how long each
-// one takes — not a literal signal from the backend. It exists purely so the
-// ~15-20s wait doesn't look frozen on a disabled button.
-const DISCOVERY_STAGES = [
-  "Searching Play Store, App Store, YouTube, and forums…",
-  "Collecting reviews and comments…",
-  "Discovering themes from what users said…",
-  "Classifying reviews against those themes…",
-  "Almost done…",
-];
-const STAGE_INTERVAL_MS = 3500;
+const SUGGESTED_COMPARISONS = ["Myntra", "AJIO", "Meesho"];
 
 export default function SearchForm({
   onSubmit,
@@ -29,31 +19,33 @@ export default function SearchForm({
   onSubmit: (values: SearchFormValues) => void;
   loading: boolean;
 }) {
-  const [productName, setProductName] = useState("");
+  const [productName, setProductName] = useState("Nykaa Fashion");
+  const [comparisons, setComparisons] = useState<string[]>(DEFAULT_COMPARISON_PLATFORMS);
   const [appStoreId, setAppStoreId] = useState("");
   const [playPackage, setPlayPackage] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [stageIndex, setStageIndex] = useState(0);
 
-  useEffect(() => {
-    if (!loading) return;
-    const id = setInterval(() => {
-      setStageIndex((i) => Math.min(i + 1, DISCOVERY_STAGES.length - 1));
-    }, STAGE_INTERVAL_MS);
-    return () => clearInterval(id);
-  }, [loading]);
+  function toggleComparison(name: string) {
+    setComparisons((current) =>
+      current.includes(name) ? current.filter((c) => c !== name) : [...current, name]
+    );
+  }
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!productName.trim() || loading) return;
-    setStageIndex(0); // a plain event handler, not an effect — safe to reset here directly
-    onSubmit({ productName: productName.trim(), appStoreId: appStoreId.trim(), playPackage: playPackage.trim() });
+    onSubmit({
+      productName: productName.trim(),
+      comparisonPlatforms: comparisons,
+      appStoreId: appStoreId.trim(),
+      playPackage: playPackage.trim(),
+    });
   }
 
   return (
     <form onSubmit={handleSubmit} className="rounded-xl border border-de-border bg-de-surface p-5">
       <label htmlFor="productName" className="block text-xs font-medium uppercase tracking-wide text-de-text-muted">
-        Product or app name
+        Primary platform
       </label>
       <div className="mt-2 flex flex-col gap-3 sm:flex-row">
         <input
@@ -69,23 +61,42 @@ export default function SearchForm({
           disabled={loading || !productName.trim()}
           className="rounded-lg bg-de-accent px-5 py-2.5 text-sm font-semibold text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {loading ? "Discovering…" : "Discover themes"}
+          {loading ? "Running…" : "Run analysis"}
         </button>
       </div>
 
-      {loading && (
-        <div className="mt-3 flex items-center gap-2 text-xs text-de-text-muted" role="status" aria-live="polite">
-          <span className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-de-border border-t-de-accent" />
-          {DISCOVERY_STAGES[stageIndex]}
-        </div>
-      )}
+      <p className="mt-4 text-xs font-medium uppercase tracking-wide text-de-text-muted">Comparison corpus</p>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {SUGGESTED_COMPARISONS.map((name) => {
+          const on = comparisons.includes(name);
+          return (
+            <button
+              key={name}
+              type="button"
+              onClick={() => toggleComparison(name)}
+              className={
+                on
+                  ? "rounded-lg bg-de-accent/20 px-3 py-1.5 text-xs font-semibold text-de-accent ring-1 ring-de-accent/40"
+                  : "rounded-lg border border-de-border px-3 py-1.5 text-xs text-de-text-muted hover:text-de-text-secondary"
+              }
+            >
+              {on ? "✓ " : "+ "}
+              {name}
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-[11px] leading-snug text-de-text-muted">
+        The brief is about online fashion shopping, not one retailer. Comparison platforms are collected and labelled
+        separately so every theme can be read as a platform problem or a category problem.
+      </p>
 
       <button
         type="button"
         onClick={() => setAdvancedOpen((v) => !v)}
         className="mt-3 text-xs font-medium text-de-text-muted underline decoration-de-border underline-offset-4 hover:text-de-text-secondary"
       >
-        {advancedOpen ? "Hide" : "Show"} advanced (exact App Store ID / Play package)
+        {advancedOpen ? "Hide" : "Show"} advanced (exact App Store ID / Play package for the primary platform)
       </button>
 
       {advancedOpen && (
@@ -99,7 +110,7 @@ export default function SearchForm({
               type="text"
               value={appStoreId}
               onChange={(e) => setAppStoreId(e.target.value)}
-              placeholder="e.g. 1439872423"
+              placeholder="resolved by name if left blank"
               className="mt-1 w-full rounded-lg border border-de-border bg-black/30 px-3 py-2 text-sm text-de-text-primary placeholder:text-de-text-muted focus:border-de-accent focus:outline-none focus:ring-1 focus:ring-de-accent"
             />
           </div>
