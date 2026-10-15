@@ -1,0 +1,352 @@
+<title>Discovery Engine one sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,600;0,6..96,800;1,6..96,500;1,6..96,700&family=Manrope:wght@400;500;600;700;800&family=Martian+Mono:wght@400;500&display=swap">
+<style>
+/* Identity: a fashion editor's measuring kit. Mauve paper, aubergine ink, a tailor's tape
+   for every scale; cobalt marks the rule layer, saffron the model layer, magenta the score. */
+:root {
+  --bg: #f3edf1;
+  --card: #fffbfd;
+  --ink: #2a1630;
+  --muted: #6f5a73;
+  --rule: #e2d4de;
+  --magenta: #b8205f;
+  --magenta-soft: #f7dbe7;
+  --cobalt: #2a49c9;
+  --cobalt-soft: #dde3fb;
+  --saffron: #c98a00;
+  --saffron-soft: #f9ecc8;
+  --tape: #ecc94b;
+  --display: "Bodoni Moda", Didot, Georgia, serif;
+  --body: "Manrope", "Segoe UI", sans-serif;
+  --mono: "Martian Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1b1022; --card: #24162b; --ink: #f6eaf3; --muted: #b9a2bd; --rule: #3f2b47;
+    --magenta: #ff62a5; --magenta-soft: #4a1a33; --cobalt: #8fa6ff; --cobalt-soft: #1f2752; --saffron: #ffc53d; --saffron-soft: #3d2e0c; --tape: #c9a43a;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1b1022; --card: #24162b; --ink: #f6eaf3; --muted: #b9a2bd; --rule: #3f2b47;
+  --magenta: #ff62a5; --magenta-soft: #4a1a33; --cobalt: #8fa6ff; --cobalt-soft: #1f2752; --saffron: #ffc53d; --saffron-soft: #3d2e0c; --tape: #c9a43a;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 15px;
+  line-height: 1.45;
+  margin: 0;
+}
+.sheet { width: 960px; margin: 0 auto; padding: 12px 20px; display: grid; gap: 0; }
+.sheet > section { padding: 0 30px 28px; background: var(--card); border: 1px solid var(--rule); position: relative; }
+.tape { height: 22px; margin: 0 -30px 20px; background-color: var(--tape); background-image: repeating-linear-gradient(90deg, rgba(42,22,48,0.75) 0 1px, transparent 1px 10px), repeating-linear-gradient(90deg, rgba(42,22,48,0.75) 0 1.5px, transparent 1.5px 50px); background-size: 100% 7px, 100% 13px; background-repeat: no-repeat; position: relative; }
+.tape span { position: absolute; right: 30px; bottom: 2px; font-family: var(--mono); font-size: 9.5px; color: #2a1630; letter-spacing: 0.05em; }
+h1, h2 { font-family: var(--display); margin: 0; }
+h2 { font-size: 36px; font-weight: 800; line-height: 1; letter-spacing: -0.01em; }
+h2 em { font-weight: 500; font-style: italic; color: var(--magenta); }
+h3 { margin: 0; font-family: var(--body); font-weight: 800; }
+p { margin: 0; }
+.k { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.lede { display: grid; grid-template-columns: 1.1fr 1fr; gap: 30px; align-items: end; margin-bottom: 20px; }
+.lede p { color: var(--muted); font-size: 14.5px; }
+.rise { animation: rise 0.7s cubic-bezier(.2,.7,.2,1) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.pop { animation: pop 0.5s cubic-bezier(.3,1.6,.5,1) both; }
+@keyframes pop { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes stamp { 0% { transform: rotate(-6deg) scale(2.2); opacity: 0; } 60% { transform: rotate(-6deg) scale(0.94); opacity: 1; } 100% { transform: rotate(-6deg) scale(1); opacity: 1; } }
+.d1 { animation-delay: 0.15s; } .d2 { animation-delay: 0.3s; } .d3 { animation-delay: 0.45s; } .d4 { animation-delay: 0.6s; } .d5 { animation-delay: 0.75s; } .d6 { animation-delay: 0.9s; } .d7 { animation-delay: 1.05s; } .d8 { animation-delay: 1.2s; } .d9 { animation-delay: 1.35s; } .d10 { animation-delay: 1.5s; }
+
+/* ---------- hero ---------- */
+.hero-in > div:first-child { position: relative; }
+.hero-in { display: grid; grid-template-columns: 1.1fr 1fr; gap: 30px; }
+.hero h1 { font-size: 76px; font-weight: 800; line-height: 0.88; letter-spacing: -0.02em; margin-top: 10px; }
+.hero h1 em { font-style: italic; font-weight: 500; color: var(--magenta); display: block; }
+.hero .what { font-size: 18px; font-weight: 600; margin-top: 16px; line-height: 1.35; }
+.goal { margin-top: 16px; border: 1.5px solid var(--ink); padding: 12px 14px; position: relative; }
+.goal .k { color: var(--magenta); }
+.goal p { font-size: 14px; margin-top: 4px; }
+.goal b { font-weight: 800; }
+.plats { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+.plats span.p { font-family: var(--display); font-style: italic; font-size: 17px; font-weight: 700; padding: 0 10px; border-right: 1px solid var(--rule); }
+.plats span.p:last-child { border-right: 0; }
+.seal { position: absolute; right: 30px; top: 118px; background: var(--magenta); color: #fff; font-family: var(--mono); font-size: 10px; line-height: 1.15; text-align: center; padding: 8px 10px; transform: rotate(-6deg); animation: stamp 0.7s cubic-bezier(.3,.7,.3,1) both 0.4s; }
+.seal b { display: block; font-family: var(--display); font-size: 24px; font-weight: 800; }
+.ticker { position: relative; height: 380px; overflow: hidden; background: var(--bg); border: 1px solid var(--rule); }
+.ticker .head { position: absolute; top: 0; left: 0; right: 0; z-index: 3; display: flex; justify-content: space-between; padding: 8px 12px; background: var(--card); border-bottom: 1px solid var(--rule); }
+.ticker .gate { position: absolute; left: 0; right: 0; top: 196px; height: 2px; background: var(--cobalt); z-index: 2; }
+.ticker .gate span { position: absolute; right: 8px; top: -18px; font-family: var(--mono); font-size: 9.5px; color: var(--cobalt); background: var(--bg); padding: 0 4px; }
+.ticker .fade { position: absolute; left: 0; right: 0; height: 60px; z-index: 2; }
+.ticker .fade.b { bottom: 0; background: linear-gradient(transparent, var(--bg)); }
+.reel { position: absolute; left: 12px; right: 12px; top: 40px; display: grid; gap: 10px; animation: reel 22s linear infinite; }
+@keyframes reel { from { transform: translateY(0); } to { transform: translateY(-50%); } }
+.q { background: var(--card); border: 1px solid var(--rule); padding: 9px 11px; font-size: 13px; line-height: 1.35; }
+.q .tags { display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap; }
+.q .tags i { font-style: normal; font-family: var(--mono); font-size: 9.5px; padding: 1px 6px; background: var(--cobalt-soft); color: var(--cobalt); }
+.q .tags i.l { background: var(--rule); color: var(--muted); }
+
+/* ---------- pipeline ---------- */
+.steps { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0; position: relative; }
+.step { padding: 0 12px 0 0; position: relative; }
+.step .no { font-family: var(--display); font-size: 48px; font-weight: 800; line-height: 1; color: var(--ink); }
+.step .bar { height: 6px; background: var(--cobalt); margin: 8px 0 10px; transform-origin: left; animation: grow 0.6s ease-out both; }
+.step.llm .bar { background: var(--saffron); }
+.step h3 { font-size: 14px; letter-spacing: 0.08em; }
+.step p { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.38; }
+.step .who { display: inline-block; margin-top: 8px; font-family: var(--mono); font-size: 9.5px; padding: 2px 6px; background: var(--cobalt-soft); color: var(--cobalt); }
+.step.llm .who { background: var(--saffron-soft); color: var(--saffron); }
+.fallback { margin-top: 22px; display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: center; border-top: 1px solid var(--rule); padding-top: 16px; }
+.fallback .big { font-family: var(--display); font-size: 44px; font-weight: 800; color: var(--magenta); line-height: 1; }
+.fallback p { font-size: 14px; }
+.srcrow { display: flex; gap: 8px; margin: 0 0 18px; flex-wrap: wrap; align-items: center; }
+.srcrow span { font-size: 12.5px; font-weight: 700; padding: 4px 10px; border: 1.5px solid var(--ink); }
+
+/* ---------- taxonomy ---------- */
+.tax { display: grid; grid-template-columns: 1.25fr 1fr; gap: 30px; }
+.lab { display: grid; grid-template-columns: 150px 1fr 40px; gap: 10px; align-items: center; padding: 5px 0; border-bottom: 1px dashed var(--rule); }
+.lab code { font-family: var(--mono); font-size: 10.5px; color: var(--cobalt); }
+.lab small { display: block; font-size: 11.5px; color: var(--muted); }
+.lab .t { height: 12px; position: relative; background-image: repeating-linear-gradient(90deg, var(--rule) 0 1px, transparent 1px 10%); }
+.lab .t i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--magenta); transform-origin: left; animation: grow 0.8s cubic-bezier(.2,.8,.2,1) both; }
+.lab b { font-family: var(--mono); font-size: 11px; font-weight: 500; text-align: right; }
+.why { display: grid; gap: 14px; align-content: start; }
+.card2 { background: var(--bg); padding: 14px 16px; }
+.card2 h3 { font-size: 15px; }
+.card2 p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.card2.rules { border-top: 4px solid var(--cobalt); }
+.card2.model { border-top: 4px solid var(--saffron); }
+.multi { font-family: var(--display); font-style: italic; font-size: 17px; margin-top: 6px; line-height: 1.3; }
+.multi + .tags { display: flex; gap: 6px; margin-top: 8px; }
+.multi + .tags i { font-style: normal; font-family: var(--mono); font-size: 10px; padding: 2px 7px; background: var(--cobalt-soft); color: var(--cobalt); animation: pop 0.4s both; }
+
+/* ---------- score ---------- */
+.formula { font-family: var(--display); font-size: 34px; font-weight: 600; text-align: left; padding: 16px 0 18px; border-top: 2px solid var(--ink); border-bottom: 2px solid var(--ink); letter-spacing: -0.01em; }
+.formula .op { font-family: var(--body); font-style: normal; font-weight: 500; color: var(--muted); padding: 0 2px; }
+.formula .lev { color: var(--magenta); font-weight: 800; }
+.formula span.c { white-space: nowrap; }
+.comps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; margin-top: 18px; }
+.comp { padding: 0 16px 0 0; }
+.comp + .comp { border-left: 1px solid var(--rule); padding-left: 16px; }
+.comp .w { font-family: var(--display); font-size: 34px; font-weight: 800; line-height: 1; }
+.comp.lev .w { color: var(--magenta); font-family: var(--body); font-weight: 500; }
+.comp h3 { font-size: 14px; margin-top: 4px; }
+.comp p { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.vs { margin-top: 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; background: var(--bg); padding: 16px 18px; }
+.vs .k { margin-bottom: 8px; }
+.row { display: grid; grid-template-columns: 130px 1fr 44px; gap: 10px; align-items: center; margin-top: 6px; font-size: 12.5px; }
+.row .t { height: 16px; background: var(--card); position: relative; border: 1px solid var(--rule); }
+.row .t i { position: absolute; left: 0; top: 0; bottom: 0; transform-origin: left; animation: grow 0.9s cubic-bezier(.2,.8,.2,1) both; }
+.row .t i.size { background: var(--muted); }
+.row .t i.score { background: var(--magenta); }
+.row b { font-family: var(--mono); font-size: 11.5px; font-weight: 500; text-align: right; }
+.vs .note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+/* ---------- sources ---------- */
+.src { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.s { border: 1px solid var(--rule); background: var(--bg); padding: 12px 14px 14px; position: relative; }
+.s h3 { font-family: var(--display); font-weight: 800; font-size: 21px; }
+.s .m { font-size: 12px; color: var(--muted); margin-top: 6px; min-height: 50px; }
+.s .st { margin-top: 8px; font-family: var(--mono); font-size: 9.5px; display: inline-block; padding: 2px 7px; }
+.s .st.ok { background: var(--cobalt-soft); color: var(--cobalt); }
+.s .st.grey { background: var(--saffron-soft); color: var(--saffron); }
+.s .when { margin-top: 10px; font-size: 12px; font-weight: 700; }
+.s .when i { font-style: normal; color: var(--magenta); }
+.honest { margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.honest p { font-size: 13.5px; }
+.honest .quote { font-family: var(--display); font-style: italic; font-size: 20px; line-height: 1.25; border-left: 3px solid var(--magenta); padding-left: 14px; }
+.errs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+.errs i { font-style: normal; font-family: var(--mono); font-size: 9.5px; padding: 2px 6px; border: 1px solid var(--rule); color: var(--muted); animation: pop 0.4s both; }
+
+/* ---------- stack ---------- */
+.stk { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0; border-top: 2px solid var(--ink); }
+.stk div { padding: 12px 16px 12px 0; border-bottom: 1px solid var(--rule); }
+.stk div:nth-child(3n+2), .stk div:nth-child(3n) { padding-left: 16px; border-left: 1px solid var(--rule); }
+.stk b { display: block; font-size: 15px; font-weight: 800; }
+.stk span { font-size: 12.5px; color: var(--muted); }
+.nums { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 20px; }
+.num { background: var(--bg); padding: 12px 14px; }
+.num b { display: block; font-family: var(--display); font-size: 38px; font-weight: 800; line-height: 1; color: var(--magenta); }
+.num span { font-size: 12px; color: var(--muted); display: block; margin-top: 4px; }
+.by { margin-top: 16px; font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+
+/* ---------- responsive ---------- */
+</style>
+
+<main class="sheet">
+
+<section class="hero" data-panel="01_hero" data-alt="Discovery Engine. Ranks opportunity areas for online fashion shopping from public conversation, with the sampling rule, both taxonomies and the scoring formula printed on screen so every number traces back to the rule that produced it. The business goal: increase the share of users who purchase at least one wishlisted item within 30 days of saving it, with monetary incentives out of scope. It compares several fashion platforms at once (Nykaa Fashion, Myntra, AJIO) and labels 100% of the corpus by published rules. A reel of phrasings from the test suite passes a label line and gets tagged: 'this brand runs small, order one size up' is FIT_SIZE; 'Wish there were customer photos' is FIT_EVIDENCE; 'I keep it in my wishlist and wait for the sale' is PRICE_WAIT; 'Is this suitable for a wedding?' is STYLING_OCCASION; 'Confused between these two kurtas' is COMPARISON; 'Should I buy this? Need opinions please' is SOCIAL_VALIDATION; 'Cheap quality fabric, feels like a first copy' is TRUST_QUALITY; 'My wishlist is a graveyard' is BOOKMARKING; 'the return pickup never came' is LOGISTICS_CX.">
+  <div class="tape"><span>cm · discovery engine</span></div>
+  <div class="hero-in">
+    <div>
+      <div class="k">Opportunity ranking instrument · Next.js</div>
+      <div class="seal"><b>100%</b>labelled<br>by rule</div>
+      <h1>Discovery <em>Engine</em></h1>
+      <p class="what">Ranks what stops fashion shoppers from buying, straight from public conversation, with every rule printed on screen.</p>
+      <div class="goal">
+        <div class="k">The one goal it is built against</div>
+        <p>Increase the share of users who <b>buy at least one wishlisted item within 30 days</b> of saving it. Monetary incentives out of scope.</p>
+      </div>
+      <div class="plats"><span class="k">compares</span><span class="p">Nykaa Fashion</span><span class="p">Myntra</span><span class="p">AJIO</span></div>
+    </div>
+    <div class="ticker">
+      <div class="head"><span class="k">phrasings from the test suite</span><span class="k" style="color:var(--cobalt)">rules ▸</span></div>
+      <div class="gate"><span>LABEL LINE</span></div>
+      <div class="reel" id="reel"></div>
+      <div class="fade b"></div>
+    </div>
+  </div>
+</section>
+
+<section data-panel="02_pipeline" data-alt="Architecture in six steps. 1 Collect: Play Store, App Store, Reddit and YouTube, every platform in parallel, and each app match is verified by title or the source collects nothing. 2 Prepare: exact duplicate removal on normalised text, every removal counted. 3 Label: the deductive frame is applied by published rules to 100% of the corpus, with no model. 4 Sample: a deterministic stratified draw by source, platform and rating band for the model layer. 5 Induce: the model (Groq) discovers themes from that sample and classifies the same sample. 6 Score: the opportunity formula. Five of the six steps need no LLM: if Groq is unavailable, step 5 is skipped and the run still produces a complete analysis with 100% coverage. The model is an enhancement, not a dependency.">
+  <div class="tape"><span>02 · six steps</span></div>
+  <div class="lede">
+    <h2>Scrape, label, sample, <em>induce,</em> score</h2>
+    <p>Each step publishes its rule. Only one of the six touches a language model, so a run never depends on one.</p>
+  </div>
+  <div class="srcrow rise d1"><span class="k">sources</span><span>Play Store</span><span>App Store</span><span>Reddit</span><span>YouTube</span></div>
+  <div class="steps">
+    <div class="step rise d1"><div class="no">1</div><div class="bar d1"></div><h3>COLLECT</h3><p>All four sources, every platform in parallel. An app match is verified by title, or the source collects nothing.</p><span class="who">no LLM</span></div>
+    <div class="step rise d2"><div class="no">2</div><div class="bar d2"></div><h3>PREPARE</h3><p>Exact duplicates removed on normalised text. Every removal counted.</p><span class="who">no LLM</span></div>
+    <div class="step rise d3"><div class="no">3</div><div class="bar d3"></div><h3>LABEL</h3><p>Deductive frame applied by published rules to 100% of the corpus.</p><span class="who">no LLM</span></div>
+    <div class="step rise d4"><div class="no">4</div><div class="bar d4"></div><h3>SAMPLE</h3><p>Deterministic stratified draw: source × platform × rating band.</p><span class="who">no LLM</span></div>
+    <div class="step llm rise d5"><div class="no">5</div><div class="bar d5"></div><h3>INDUCE</h3><p>Groq proposes themes from the sample and classifies that same sample.</p><span class="who">LLM, optional</span></div>
+    <div class="step rise d6"><div class="no">6</div><div class="bar d6"></div><h3>SCORE</h3><p>Transparent opportunity formula, every component a column.</p><span class="who">no LLM</span></div>
+  </div>
+  <div class="fallback rise d7">
+    <div class="big">5 of 6</div>
+    <p>steps run without a model. If Groq is unavailable, step 5 is skipped and the run still returns a complete analysis with 100% coverage. <b>The model is an enhancement, not a dependency.</b></p>
+  </div>
+</section>
+
+<section data-panel="03_taxonomy" data-alt="Two taxonomies, and why both. The deductive frame has ten labels derived from the brief, applied by weighted pattern rules to 100% of items, each with a published leverage on the goal from 0 to 1: FIT_SIZE, fit and size uncertainty, 1.0; FIT_EVIDENCE, wants proof on a real body, 0.95; SOCIAL_VALIDATION, wants someone else's opinion first, 0.8; TRUST_QUALITY, doubts the quality or authenticity, 0.8; STYLING_OCCASION, unsure how or where to wear it, 0.7; COMPARISON, shortlisting and comparing options, 0.65; PRICE_WAIT, waiting for a price drop, 0.45; BOOKMARKING, saving with no purchase intent, 0.3; LOGISTICS_CX, delivery, returns and support after purchase, 0.2; OTHER, no frame signal, 0. Labels are multi label: 'wrong size delivered, return pickup never came' is both FIT_SIZE and LOGISTICS_CX. Rules instead of the model because a free tier token budget caps model labelling at a few dozen items per run, and the brief needs a denominator covering every item, not 6% of them. Inductive themes come from the model on a stated sample, with shares reported against the items it actually classified, and the run reports the rule and model agreement rate.">
+  <div class="tape"><span>03 · two taxonomies</span></div>
+  <div class="lede">
+    <h2>Ten labels, each with a <em>leverage</em></h2>
+    <p>Leverage is how directly a hesitation sits between "saved" and "bought". It is fixed and published per label, from 0 to 1.</p>
+  </div>
+  <div class="tax">
+    <div>
+      <div class="lab"><span><code>FIT_SIZE</code><small>Fit and size uncertainty</small></span><div class="t"><i class="d1" style="width:100%"></i></div><b>1.00</b></div>
+      <div class="lab"><span><code>FIT_EVIDENCE</code><small>Wants proof on a real body</small></span><div class="t"><i class="d2" style="width:95%"></i></div><b>0.95</b></div>
+      <div class="lab"><span><code>SOCIAL_VALIDATION</code><small>Wants someone's opinion first</small></span><div class="t"><i class="d3" style="width:80%"></i></div><b>0.80</b></div>
+      <div class="lab"><span><code>TRUST_QUALITY</code><small>Doubts quality or authenticity</small></span><div class="t"><i class="d4" style="width:80%"></i></div><b>0.80</b></div>
+      <div class="lab"><span><code>STYLING_OCCASION</code><small>Unsure how or where to wear it</small></span><div class="t"><i class="d5" style="width:70%"></i></div><b>0.70</b></div>
+      <div class="lab"><span><code>COMPARISON</code><small>Shortlisting and comparing</small></span><div class="t"><i class="d6" style="width:65%"></i></div><b>0.65</b></div>
+      <div class="lab"><span><code>PRICE_WAIT</code><small>Waiting for a price drop</small></span><div class="t"><i class="d7" style="width:45%"></i></div><b>0.45</b></div>
+      <div class="lab"><span><code>BOOKMARKING</code><small>Saving with no intent to buy</small></span><div class="t"><i class="d8" style="width:30%"></i></div><b>0.30</b></div>
+      <div class="lab"><span><code>LOGISTICS_CX</code><small>Delivery, returns, support (after purchase)</small></span><div class="t"><i class="d9" style="width:20%"></i></div><b>0.20</b></div>
+      <div class="lab"><span><code>OTHER</code><small>No frame signal</small></span><div class="t"><i class="d10" style="width:0%"></i></div><b>0</b></div>
+    </div>
+    <div class="why">
+      <div class="card2 rules rise d2"><h3>Deductive frame: rules, 100% coverage</h3><p>A free tier token budget caps model labelling at a few dozen items per run. A brief that asks to quantify opportunity needs a denominator covering every item, not 6% of them. Every pattern is printed on /methodology.</p></div>
+      <div class="card2 rise d4"><h3>Multi label on purpose</h3><p class="multi">"wrong size delivered, return pickup never came"</p><div class="tags"><i class="d5">FIT_SIZE</i><i class="d6">LOGISTICS_CX</i></div><p>Forcing one winner is how a fit signal disappears under logistics volume.</p></div>
+      <div class="card2 model rise d6"><h3>Inductive themes: model, stated sample</h3><p>Groq proposes themes from the stratified sample. Shares are reported against the items it actually classified, and the run prints the rule and model agreement rate instead of assuming the rules are right.</p></div>
+    </div>
+  </div>
+</section>
+
+<section data-panel="04_score" data-alt="The opportunity score: Opportunity equals 100 times Leverage times (0.50 Prevalence plus 0.30 Severity plus 0.20 Breadth). Prevalence is the share of the corpus, normalised to the largest theme. Severity is the share of the theme's rated items at 1 or 2 stars, falling back to model sentiment and then to the corpus detractor rate as a neutral prior. Breadth is distinct platforms carrying the theme divided by platforms in the run: a theme on all three is a category problem. Leverage, from 0 to 1, multiplies rather than adds, on purpose. A worked illustration with made up inputs, not run data: a large after delivery theme with problem size 0.90 and leverage 0.20 scores 18, while a smaller fit theme with problem size 0.40 and leverage 1.0 scores 40. Adding would let volume alone win; multiplying says a large problem with little to do with the goal is not a large opportunity for this goal. The inductive catch all is pinned to zero leverage so it can never head a ranking, and every component is a column next to the score.">
+  <div class="tape"><span>04 · the score</span></div>
+  <div class="lede">
+    <h2>Volume alone <em>cannot win</em></h2>
+    <p>Problem size is a weighted sum. The score is that size gated by leverage, so relevance to this goal decides the ranking.</p>
+  </div>
+  <div class="formula rise d1">Opportunity <i class="op">=</i> 100 <i class="op">×</i> <span class="lev">Leverage</span> <i class="op">×</i> <span class="c">(0.50<i class="op">·</i>Prevalence <i class="op">+</i> 0.30<i class="op">·</i>Severity <i class="op">+</i> 0.20<i class="op">·</i>Breadth)</span></div>
+  <div class="comps">
+    <div class="comp rise d2"><div class="w">0.50</div><h3>Prevalence</h3><p>Share of the corpus, normalised to the largest theme.</p></div>
+    <div class="comp rise d3"><div class="w">0.30</div><h3>Severity</h3><p>Share of rated items at 1 or 2★, with published fallbacks when ratings are thin.</p></div>
+    <div class="comp rise d4"><div class="w">0.20</div><h3>Breadth</h3><p>Platforms carrying it ÷ platforms in the run. All three means a category problem.</p></div>
+    <div class="comp lev rise d5"><div class="w">×</div><h3>Leverage</h3><p>0 to 1 per label. The inductive catch all is pinned to 0.</p></div>
+  </div>
+  <div class="vs">
+    <div>
+      <div class="k">Worked illustration · made up inputs, not run data</div>
+      <div class="row"><span>After delivery theme</span><div class="t"><i class="size d3" style="width:90%"></i></div><b>0.90</b></div>
+      <div class="row"><span>Fit theme</span><div class="t"><i class="size d4" style="width:40%"></i></div><b>0.40</b></div>
+      <p class="note">Problem size: the bigger theme wins on volume.</p>
+    </div>
+    <div>
+      <div class="k">× leverage (0.20 and 1.0)</div>
+      <div class="row"><span>After delivery theme</span><div class="t"><i class="score d6" style="width:18%"></i></div><b>18</b></div>
+      <div class="row"><span>Fit theme</span><div class="t"><i class="score d7" style="width:40%"></i></div><b>40</b></div>
+      <p class="note">Opportunity: the smaller, goal relevant theme ranks first. A test checks exactly this.</p>
+    </div>
+  </div>
+</section>
+
+<section data-panel="05_sources" data-alt="Data sources and compliance. App Store: iTunes Search API to resolve the app plus the public customer reviews RSS feed; official, public, unauthenticated; post delivery. Reddit: public search.json endpoints per subreddit with no auth, volume capped (default 200), no author handles stored, a 429 shown as rate limited rather than retried hard; the only channel that reaches people before they buy. Play Store: google play scraper against Google's public but undocumented endpoints; unofficial and a terms of service grey area, capped at 300 reviews per platform; post delivery. YouTube: Data API v3, official, free daily quota, optional. The honest framing: app store reviews are a post delivery channel, and the user this brief is about (saved, never bought) leaves no trace there. The Channel Coverage panel prints each channel's measured share of items with a pre purchase signal, and the grounded Q and A says 'the excerpts don't cover this' rather than invent an answer. A failing source reports only a category: not configured, blocked, rate limited, timeout, network, no results, no confident match, upstream error; raw errors, URLs and variable names stay in the server log.">
+  <div class="tape"><span>05 · where the evidence lives</span></div>
+  <div class="lede">
+    <h2>Four channels, <em>honestly</em> labelled</h2>
+    <p>Each source states how it is collected, its compliance status, and whether it can see a shopper before or after the purchase.</p>
+  </div>
+  <div class="src">
+    <div class="s pop d1"><h3>App Store</h3><p class="m">iTunes Search API to resolve the app, plus the public reviews RSS feed.</p><span class="st ok">official · public</span><p class="when">sees: <i>after delivery</i></p></div>
+    <div class="s pop d2"><h3>Reddit</h3><p class="m">Public search.json per subreddit, no auth. Capped at 200 by default, no author handles stored.</p><span class="st ok">public JSON · no key</span><p class="when">sees: <i>before buying</i></p></div>
+    <div class="s pop d3"><h3>Play Store</h3><p class="m">google play scraper on public but undocumented endpoints. Capped at 300 reviews per platform.</p><span class="st grey">unofficial · ToS grey area</span><p class="when">sees: <i>after delivery</i></p></div>
+    <div class="s pop d4"><h3>YouTube</h3><p class="m">Data API v3, search plus comment threads. Free daily quota.</p><span class="st ok">official · optional</span><p class="when">sees: <i>comments on videos</i></p></div>
+  </div>
+  <div class="honest">
+    <div class="rise d5"><p class="quote">The shopper who saved something and never bought it leaves no trace in an app store review.</p><p style="margin-top:10px;font-size:13px;color:var(--muted)">So the Channel Coverage panel prints each channel's measured share of items with a pre purchase signal, and the grounded Q&amp;A box says "the excerpts don't cover this" instead of inventing an answer.</p></div>
+    <div class="rise d6"><div class="k">No leaked internals: a failing source shows only a category</div>
+      <div class="errs"><i class="d6">not_configured</i><i class="d6">blocked</i><i class="d7">rate_limited</i><i class="d7">timeout</i><i class="d8">network</i><i class="d8">no_results</i><i class="d9">no_confident_match</i><i class="d9">upstream_error</i></div>
+      <p style="margin-top:10px;font-size:13px;color:var(--muted)">Raw exception text, upstream URLs, HTTP statuses and variable names go to the server log only, and user facing text passes a scrub as well.</p>
+    </div>
+  </div>
+</section>
+
+<section data-panel="06_stack" data-alt="Stack and numbers. Next.js 16 with the App Router, TypeScript, Tailwind CSS, Groq with openai/gpt-oss-120b pinned, Upstash Redis for rate limiting, caching and run permalinks, Vitest, deployed on Vercel. 171 unit tests with no network. The enforced Groq free tier limit for the pinned model is 8,000 tokens per minute (the docs advertise 6,000); it is a reasoning model spending 600 to 1,300 tokens per call before writing JSON. 48 items is the default model sample (CLASSIFY_MAX_ITEMS), the only knob that limits coverage, and only for the inductive layer. With no API keys at all, a run still collects, labels 100%, scores opportunities and cuts segments. Each run produces a coverage panel, a ranked opportunity table on two taxonomies, segment cuts, channel coverage, grounded Q and A, CSV, JSON and markdown exports, and a run permalink. Built by Aditya K. Koundinya.">
+  <div class="tape"><span>06 · stack</span></div>
+  <div class="lede">
+    <h2>Runs with <em>zero</em> keys</h2>
+    <p>With no API keys a run still collects, labels 100%, scores opportunities and cuts segments. A Groq key adds themes and grounded Q&amp;A; Upstash adds permalinks.</p>
+  </div>
+  <div class="stk">
+    <div class="rise d1"><b>Next.js 16</b><span>App Router, server rendered /run/{id} and /methodology</span></div>
+    <div class="rise d2"><b>TypeScript + Tailwind CSS</b><span>typed pipeline, typegen checked in CI</span></div>
+    <div class="rise d3"><b>Groq</b><span>openai/gpt-oss-120b, pinned, never auto routed</span></div>
+    <div class="rise d4"><b>Upstash Redis</b><span>rate limits, result cache, run permalinks</span></div>
+    <div class="rise d5"><b>Vitest</b><span>unit tests, no network</span></div>
+    <div class="rise d6"><b>Vercel</b><span>root directory discovery-engine, 60 s max duration</span></div>
+  </div>
+  <div class="nums">
+    <div class="num pop d3"><b>171</b><span>unit tests, all offline</span></div>
+    <div class="num pop d4"><b>8,000</b><span>tokens per minute, the enforced Groq limit (docs say 6,000)</span></div>
+    <div class="num pop d5"><b>48</b><span>items in the default model sample, the only coverage knob</span></div>
+    <div class="num pop d6"><b>6</b><span>outputs: coverage, ranking, segments, channels, Q&amp;A, exports</span></div>
+  </div>
+  <div class="by">Built by Aditya K. Koundinya · github.com/Koundinya2003/AI-Discovery-Engine</div>
+</section>
+
+</main>
+
+<script>
+(function () {
+  // Phrasings taken from lib/taxonomy/deductive.test.ts, with the label each test expects.
+  var items = [
+    ["this brand runs small, order one size up", ["FIT_SIZE"]],
+    ["Wish there were customer photos, it looks completely different in person", ["FIT_EVIDENCE"]],
+    ["I keep it in my wishlist and wait for the sale before buying", ["PRICE_WAIT"]],
+    ["Is this suitable for a wedding? Not sure how to style it", ["STYLING_OCCASION"]],
+    ["Confused between these two kurtas, which one is better?", ["COMPARISON"]],
+    ["Should I buy this? Need opinions please", ["SOCIAL_VALIDATION"]],
+    ["Cheap quality fabric, feels like a first copy", ["TRUST_QUALITY"]],
+    ["My wishlist is a graveyard, I never actually buy from it", ["BOOKMARKING"]],
+    ["Refund not processed and the return pickup never came", ["LOGISTICS_CX"]],
+    ["nice size", ["OTHER"]]
+  ];
+  var reel = document.getElementById("reel");
+  for (var pass = 0; pass < 2; pass++) {
+    items.forEach(function (it) {
+      var d = document.createElement("div"); d.className = "q";
+      d.appendChild(document.createTextNode("“" + it[0] + "”"));
+      var t = document.createElement("div"); t.className = "tags";
+      it[1].forEach(function (c) { var i = document.createElement("i"); if (c === "OTHER") i.className = "l"; i.textContent = c; t.appendChild(i); });
+      d.appendChild(t); reel.appendChild(d);
+    });
+  }
+})();
+</script>
